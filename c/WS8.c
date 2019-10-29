@@ -1,21 +1,20 @@
 /**********************************************************************
  *	This code is representing my functions of WS8- Structs            *
- *	Lab: OL-79 													      *
+ *	Lab: OL-79                                (realloc update)		  *
  *	Author: Yonatan Vologdin 										  *
  *	Reviewer: Eyal Finkelshtein										  *
  *	Date: 23.10.19													  *
  **********************************************************************/
 
 #include <stdio.h>	/*printf*/
-#include <string.h>	/*strcpy*/
 #include <stdlib.h>	/*malloc, free*/
+#include <string.h>	/*strcpy*/
 #include <assert.h>	/*assert*/
 
 #define ARR_SIZE 3
-#define STRING_BUFFER 20
 
-#define MAX2(X,Y) ((X > Y) ? X : Y)
-#define MAX3(X,Y,Z) (MAX2(MAX2(X,Y), MAX2(Y,Z)))
+#define MAX2(X,Y) ((X > Y) ? (X) : (Y))
+#define MAX3(X,Y,Z) (MAX2(MAX2(X,Y), (Z)))
 
 #define SIZEOF_VAR(var) ((char *)(&var + 1) - (char *)&var)
 #define SIZEOF_TYPE(X)  ((X*)0+1)
@@ -42,6 +41,17 @@ void AddToArr(NODE *arr, int add);
 void Cleanup(NODE *arr);
 void ArrayElementsTest();
 void MacrosTest();
+
+int CountDigits(int num)
+{
+	int count = 0;
+	while(0 <= num)
+	{
+		++count;
+		num /= 10;
+	}
+	return count;
+}
 
 int main()
 {
@@ -74,7 +84,7 @@ void PrintFloat(void *data)
 
 void AddFloat(void **data, int num_to_add)
 {
-	assert(*((float*)&data));
+	assert (NULL != data);
 	
 	*((float*)data) += num_to_add;
 }
@@ -149,14 +159,19 @@ void ArrayElementsTest()
 	arr[1].PrintFunc = PrintFloat;
 	arr[1].AddFunc = AddFloat;
 	
+	/*allocate enough memory just for "Hello World"*/
 	arr[2].data_type = STRING;
-	arr[2].data = (void *)malloc(sizeof(word) + STRING_BUFFER); 
+	arr[2].data = (void *)malloc(sizeof(word)); 
 	strcpy((char *)arr[2].data, word);
 	arr[2].PrintFunc = PrintString;
 	arr[2].AddFunc = AddString;
-	
 	PrintArr(arr);
+	
+	/*reallocate memory to also fit in "10"*/
+	arr[2].data =  (void *)realloc(arr[2].data, sizeof(word) + sizeof(CountDigits(num_to_add)));
 	AddToArr(arr, num_to_add);
+	arr[2].PrintFunc = PrintString;
+	arr[2].AddFunc = AddString;
 	PrintArr(arr);
 	Cleanup(arr);
 }
