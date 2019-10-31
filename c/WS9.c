@@ -1,6 +1,6 @@
 /**********************************************************************
  *	This code is representing my functions of WS9- Word boundary      *
- *	Lab: OL-79 													      *
+ *	Lab: OL-79 								(after code review update)*
  *	Author: Yonatan Vologdin 										  *
  *	Reviewer: Gal Salemon        									  *
  *	Date: 29.10.19													  *
@@ -16,6 +16,9 @@
 
 #define PRINT_TEST(test_name, result) \
 (printf("%s %s\n", test_name, (0 == (result)) ? "\tPassed" : "\tFailed"))
+
+typedef size_t word;
+#define	word_size (unsigned int)sizeof(word)
 
 /*	This function recieves des (pointer to the object or block of memory that needs to be set),
 	ch (value that is copied), and sets num bytes as ch in des.
@@ -107,7 +110,6 @@ void *MyMemset(void *des, int ch, size_t num)
 	size_t *des_runner = des;
 	size_t chunk = ch;
 	unsigned int i = 0;
-    unsigned int word_size = sizeof(size_t);
 	unsigned start_loop = word_size - ((size_t)des_runner % word_size);
 	unsigned chunk_loop = 0;
 	unsigned end_loop = 0;
@@ -158,13 +160,13 @@ void ByteMemset(char *des, int ch, size_t num)
 void *MyMemcpy(void *des, const void *source, size_t num)
 {
 	char *des_runner = des;
-    unsigned int word_size = sizeof(size_t);
 	unsigned int start_loop = word_size - ((size_t)des_runner % word_size);
 	unsigned int mid_loop = 0;
 	unsigned int end_loop = 0;
 	
-	assert((NULL != des) && (NULL != source));
-
+	assert(NULL != source);
+	assert(NULL != des);
+	
 	/*means already aligned, no need for start loop*/
 	if (start_loop == word_size)
 	{
@@ -197,7 +199,8 @@ void WordMemcpy(size_t *des, const size_t *source, size_t num)
 {	
 	size_t i = 0;
 	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 	
 	for (i = 0; i < num; ++i)
 	{
@@ -209,7 +212,8 @@ void ByteMemcpy(char *des, char *source, size_t num)
 {	
 	size_t i = 0;
 	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 	
 	for (i = 0; i < num; ++i)
 	{
@@ -219,7 +223,8 @@ void ByteMemcpy(char *des, char *source, size_t num)
 
 void *MyMemmove(void *des, const void *source, size_t num)
 {	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 
 	if (des > source)
 	{
@@ -236,12 +241,12 @@ void *MyMemmove(void *des, const void *source, size_t num)
 void *RvMyMemcpy(void *des, const void *source, size_t num)
 {
 	char *des_runner = des;
-    unsigned int word_size = sizeof(size_t);
 	unsigned int start_loop = word_size - ((size_t)des_runner % word_size);
 	unsigned int mid_loop = 0;
 	unsigned int end_loop = 0;
 	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 
 	/*means already aligned, no need for start loop*/
 	if (start_loop == word_size)
@@ -279,7 +284,8 @@ void RevWordMemcpy(size_t *des, const size_t *source, size_t num)
 {	
 	size_t i = 0;
 	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 	
 	for (i = 0; i < num; ++i)
 	{
@@ -291,7 +297,8 @@ void RevByteMemcpy(char *des, char *source, size_t num)
 {	
 	size_t i = 0;
 	
-	assert((NULL != des) && (NULL != source));
+	assert(NULL != source);
+	assert(NULL != des);
 	
 	for (i = 0; i < num; ++i)
 	{
@@ -551,7 +558,9 @@ void PrintLetters(int *arr1, int *arr2, int *arr3, int len1, int len2, int len3)
 	int i = 0;
 	int letters_lut[LUT_SIZE] = {0}; /*from 'A' - 65 to 'z' - 122*/
 	
-	assert((NULL != arr1) && (NULL != arr2) && (NULL != arr3));
+	assert(NULL != arr1);
+	assert(NULL != arr2);
+	assert(NULL != arr3);
 	
 	for(i = 0; i < len1; ++i)
 	{
