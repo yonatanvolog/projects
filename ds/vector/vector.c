@@ -12,7 +12,7 @@
 #include <assert.h>	/*assert*/
 #include "vector.h"	/*vector structure*/
 
-#define QUARTER (0.25)
+#define QUARTER 0.25
 #define MEMORY_INCREASE_FACTOR 2
 #define MEMORY_DECREASE_FACTOR 0.5
 
@@ -27,7 +27,8 @@ struct d_vector_t
 d_vector_t *VectorCreate(size_t capacity, size_t element_size)
 {
 	d_vector_t *v_ptr = (d_vector_t*)malloc(sizeof(d_vector_t));
-
+	size_t extra_one = 0;
+	
 	assert(0 < capacity);	
 	assert(0 < element_size);
 	
@@ -35,7 +36,13 @@ d_vector_t *VectorCreate(size_t capacity, size_t element_size)
 	{
 		return NULL;
 	}
-	v_ptr->capacity = capacity;
+	
+	if (0 == capacity)
+	{
+		extra_one = 1;
+	}
+	
+	v_ptr->capacity = capacity + extra_one;
 	v_ptr->element_size = element_size;
 	v_ptr->size = 0;
 	v_ptr->head = (void *)malloc(capacity * element_size);

@@ -11,7 +11,7 @@
 #include <assert.h>	/*assert*/
 #include "stack.h"	/*stack structure*/
 
-struct stack_t
+struct stack
 {
     size_t elements_size;
     char *head;

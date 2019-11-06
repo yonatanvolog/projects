@@ -14,7 +14,8 @@ typedef struct d_vector_t d_vector_t;
 /* This function recieves starting capacity and element size,
   and creates an array of any suitable type. 
   Notice: it is not possible to create a vector of mixed data types.
-  0 elements_size and 0 capacity will have undefined behaviour. 
+  0 elements_size will have undefined behaviour. 
+  0 capacity will be defaulted to 1.
   Return value: a pointer to d_vector_t data type. 
 */
 d_vector_t *VectorCreate(size_t capacity, size_t elements_size);

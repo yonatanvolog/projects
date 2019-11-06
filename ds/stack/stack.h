@@ -5,16 +5,17 @@
 *                                   Stack                                   *
 *                                                                           *
 *****************************************************************************/
-#include <stdio.h> /* size_t */
+#ifndef ILRD_STACK_H
+#define ILRD_STACK_H
 
-#ifndef STACK_H
-#define STACK_H
+#include <stddef.h> /* size_t */
 
-typedef struct stack_t stack_t;
+typedef struct stack stack_t;
 
 /* This function recieves number of elements and elements size,
 * and creates a stack of any suitable type. 
 * Notice: it is not possible to create a stack of mixed data types.
+* num_of_elements and elements_size both should be bigger than 0.
 * Return value: a pointer to stack_t data type. */
 stack_t *StackCreate(size_t num_of_elements, size_t elements_size);
 
