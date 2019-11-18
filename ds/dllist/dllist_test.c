@@ -37,8 +37,8 @@ struct node
 	struct node *next;
 };
 
-static int AddToInt(dll_node_t *iter, void *param);
-static int LookForNum(const dll_node_t *iter, const void *param);
+static int AddToInt(void *data, void *param);
+static int LookForNum(const void *data, const void *param);
 
 int DLListCreateAndDestroyTest();
 int DLListInsertTest();
@@ -263,8 +263,10 @@ int DLListForEachTest()
 	RUN_TEST("ForEachTest1:", (1 == *(int *)run_iter->data));
 	run_iter = DLListNext(run_iter);
 	RUN_TEST("ForEachTest2:", (2 == *(int *)run_iter->data));
+				printf("\n\ndata:%d\n\n", *(int *)run_iter->data);
 	run_iter = DLListNext(run_iter);
 	RUN_TEST("ForEachTest3:", (13 == *(int *)run_iter->data));
+				printf("\n\ndata:%d\n\n", *(int *)run_iter->data);
 	run_iter = DLListNext(run_iter);
 	RUN_TEST("ForEachTest4:", (14 == *(int *)run_iter->data));
 	run_iter = DLListNext(run_iter);
@@ -277,14 +279,15 @@ int DLListForEachTest()
 	return 0;
 }
 
-static int AddToInt(dll_node_t *iter, void *param)
+static int AddToInt(void *data, void *param)
 {
-	assert(NULL != iter);
+	assert(NULL != param);
 
-	*(int *)iter->data += *(int *)param;
+	*(int *)data += *(int *)param;
 	
 	return 0;
 }
+
 
 int DLListFindTest()
 {
@@ -331,12 +334,11 @@ int DLListFindTest()
 	return 0;
 }
 
-static int LookForNum(const dll_node_t *iter, const void *param)
+static int LookForNum(const void *data, const void *param)
 {
-	assert(NULL != iter);
 	assert(NULL != param);
 
-	if(*(int *)param == *(int *)iter->data)
+	if(*(int *)param == *(int *)data)
 	{
 		return 1;
 	}
