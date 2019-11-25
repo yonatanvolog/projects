@@ -13,7 +13,8 @@
 
 #define	UNUSE(var) ((void)(var))
 
-static int FindUnwrapper(const void *data, const void *param);
+static int FindUnwrapperIMP(const void *data, const void *param);
+static int InsertUnwrapperIMP(const void *data, const void *param);
 
 typedef struct find_wrapper
 {
@@ -60,25 +61,41 @@ void SrtListDestroy(srt_list_t *list)
 
 srt_iter_t SrtListInsert(void *data, srt_list_t *list)
 {
-	dll_iter_t dll_node = NULL;
-	srt_iter_t srt_node = {NULL};	
+	find_arg_wrapper *wrap_struct  = NULL;
+	find_ptr un_wrapper = NULL;
+	srt_iter_t srt_return_iter = {NULL};
 
 	assert(list);
 	assert(data);
 
-	for (dll_node = DLListBegin(list->dll); dll_node != DLListEnd(list->dll); 
-											dll_node = DLListNext(dll_node))
+	wrap_struct = (find_arg_wrapper *)malloc(sizeof(find_arg_wrapper));
+	if (NULL == wrap_struct)
 	{
-		if (list->is_before_ptr(data, DLListGetData(dll_node),
-									  list->is_before_param))
-		{
-			break;
-		}
+		return srt_return_iter;
 	}
 
-	srt_node.dll_iterator = DLListInsert(data, dll_node, list->dll);
+	wrap_struct->is_before = list->is_before_ptr;
+	wrap_struct->is_before_param = list->is_before_param;
+	wrap_struct->data = data;
 
-	return srt_node;
+	un_wrapper = InsertUnwrapperIMP;
+
+	srt_return_iter.dll_iterator =
+	DLListFind(DLListBegin(list->dll), DLListEnd(list->dll), wrap_struct, un_wrapper);
+
+	srt_return_iter.dll_iterator = 
+	DLListInsert(data, srt_return_iter.dll_iterator, list->dll);
+
+	free(wrap_struct);
+
+	return srt_return_iter;
+}
+
+static int InsertUnwrapperIMP(const void *data, const void *param)
+{
+	const find_arg_wrapper *wrap_struct = (find_arg_wrapper *)param;
+	
+	return wrap_struct->is_before(wrap_struct->data, data, wrap_struct->is_before_param);
 }
 
 void *SrtListPopFront(srt_list_t *list)
@@ -141,7 +158,7 @@ srt_iter_t SrtListFind(srt_iter_t begin, srt_iter_t end,
 	wrap_struct->is_before_param = list->is_before_param;
 	wrap_struct->data = data;
 
-	un_wrapper = FindUnwrapper;
+	un_wrapper = FindUnwrapperIMP;
 	srt_return_iter.dll_iterator =
 	DLListFind(begin.dll_iterator, end.dll_iterator, wrap_struct, un_wrapper);
 
@@ -150,7 +167,7 @@ srt_iter_t SrtListFind(srt_iter_t begin, srt_iter_t end,
 	return srt_return_iter;
 }
 
-static int FindUnwrapper(const void *data, const void *param)
+static int FindUnwrapperIMP(const void *data, const void *param)
 {
 	int test1 = 0, test2 = 0;
 	find_arg_wrapper *wrap_struct = (find_arg_wrapper *)param;
@@ -192,17 +209,26 @@ int SrtListForEach(srt_iter_t begin, srt_iter_t end, void *param,
 
 void SrtListMerge(srt_list_t *src_list, srt_list_t *dest_list)
 {
-	srt_iter_t srt_iter = {NULL};
+	dll_iter_t dest_i 		= DLListBegin(dest_list->dll);
+	dll_iter_t src_i_start	= DLListBegin(src_list->dll);
+	dll_iter_t src_i_end	= DLListBegin(src_list->dll);
 
-	assert(src_list);
-	assert(dest_list);
-	
-	for (srt_iter = SrtListBegin(src_list)
-		 ;!SrtListIsSameIterator(srt_iter, SrtListEnd(src_list))
-		 ; srt_iter = SrtListNext(srt_iter))
-	{	
-		SrtListInsert(SrtListGetData(srt_iter), dest_list);
+	for(; 0 == DLListIsSameIterator(dest_i, DLListEnd(dest_list->dll)) 
+		; dest_i = DLListNext(dest_i))
+	{
+		while (*(int *)DLListGetData(src_i_end) <= *(int *)DLListGetData(dest_i))
+		{
+			src_i_end = DLListNext(src_i_end);
+		}
+					
+		if (0 == DLListIsSameIterator(src_i_end, src_i_start))
+		{
+			DLListSplice(DLListBegin(src_list->dll), src_i_end, DLListPrev(dest_i));
+		}
+
+		src_i_start = src_i_end;
 	}
+	DLListSplice(DLListBegin(src_list->dll), DLListEnd(src_list->dll), DLListPrev(dest_i));
 
 	SrtListDestroy(src_list);
 }
