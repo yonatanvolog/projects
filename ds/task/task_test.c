@@ -21,7 +21,7 @@ int TaskGetTimeToRunTest();
 int TaskUpdateTimeToRunTest();
 int TaskIsMatchByIDTest();
 int TaskRunTest();
-/*
+
 int main()
 {	
 	RUN_SEQUENCE("TaskCreateRemoveTest", TaskCreateRemoveTest());
@@ -33,7 +33,7 @@ int main()
 
 	return 0;
 }
-*/
+
 int TaskCreateRemoveTest()
 {
 	int action_func_param = 1;
