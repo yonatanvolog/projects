@@ -36,7 +36,8 @@ typedef struct block_header vsa_t;
 vsa_t *VSAInit(void *memory_pool, size_t pool_size);
 
 /*	The function recieves pointer to VSA.
-*	Function allocates one block of block_size bytes.
+*	Function allocates one block of block_size bytes via first fit.
+*	All free blocks up untill first fit are defragged.
 *	Return Value: address of allocated block, 
 *	or NULL if there's not enough memory left.
 *	VSA must be a valid VSA type that's not NULL.

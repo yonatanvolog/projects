@@ -20,22 +20,26 @@ int VSAAllocTest();
 int VSAAllocTestDEBUG();
 int VSAFreeTest();
 int VSAFreeTestDEBUG();
+int VSADefragTest();
+int VSADefragTestDEBUG();
 int VSALargestChunkTest();
 int VSALargestChunkTestDEBUG();
 
 int main()
 {
-	#ifndef NDEBUG
+	#ifdef NDEBUG
 	RUN_SEQUENCE("VSAInitTest", VSAInitTest());
 	RUN_SEQUENCE("VSAAllocTest", VSAAllocTest());
 	RUN_SEQUENCE("VSAFreeTest", VSAFreeTest());
+	RUN_SEQUENCE("VSADefragTest", VSADefragTest());
 	RUN_SEQUENCE("VSALargestChunkTest", VSALargestChunkTest());
 	#endif
 
-	#ifdef NDEBUG
+	#ifndef NDEBUG
 	RUN_SEQUENCE("VSAInitTestDEBUG", VSAInitTestDEBUG());
 	RUN_SEQUENCE("VSAAllocTestDEBUG", VSAAllocTestDEBUG());
 	RUN_SEQUENCE("VSAFreeTestDEBUG", VSAFreeTestDEBUG());
+	RUN_SEQUENCE("VSADefragTestDEBUG", VSADefragTestDEBUG());
 	RUN_SEQUENCE("VSALargestChunkTestDEBUG", VSALargestChunkTestDEBUG());
 	#endif
 
@@ -218,6 +222,92 @@ int VSAFreeTestDEBUG()
 
 	return 0;
 }
+
+int VSADefragTest()
+{
+	char *address2 = NULL;
+	char *address3 = NULL;
+
+	char *address5 = NULL;
+	char *address6 = NULL;
+	char *address7 = NULL;
+
+	char *address_a = NULL;
+
+	size_t pool_size = 128;
+
+	char *vsa = (char *)malloc(pool_size);
+	vsa = (char *)VSAInit(vsa, pool_size);
+
+			   VSAAlloc((vsa_t *)vsa, 8); 
+	address2 = VSAAlloc((vsa_t *)vsa, 8); 
+	address3 = VSAAlloc((vsa_t *)vsa, 8); 
+			   VSAAlloc((vsa_t *)vsa, 8); 
+	address5 = VSAAlloc((vsa_t *)vsa, 8);
+	address6 = VSAAlloc((vsa_t *)vsa, 8); 
+	address7 = VSAAlloc((vsa_t *)vsa, 8);
+
+	VSAFree(address2);
+	VSAFree(address3);
+
+	VSAFree(address5);
+	VSAFree(address6);
+	VSAFree(address7);
+	
+	address_a = VSAAlloc((vsa_t *)vsa, 32);
+
+	address2 -= 8;
+	RUN_TEST("IsDataOnTheWayDefragged?", -24 == *(ssize_t *)address2);
+	RUN_TEST("IsFirstFitAllocated?\t", address5 == address_a);
+
+	free(vsa);
+
+	return 0;
+}
+
+int VSADefragTestDEBUG()
+{
+	char *address2 = NULL;
+	char *address3 = NULL;
+
+	char *address5 = NULL;
+	char *address6 = NULL;
+	char *address7 = NULL;
+
+	char *address_a = NULL;
+
+	size_t pool_size = 256;
+
+	char *vsa = (char *)malloc(pool_size);
+	vsa = (char *)VSAInit(vsa, pool_size);
+
+			   VSAAlloc((vsa_t *)vsa, 8); 
+	address2 = VSAAlloc((vsa_t *)vsa, 8); 
+	address3 = VSAAlloc((vsa_t *)vsa, 8); 
+			   VSAAlloc((vsa_t *)vsa, 8); 
+	address5 = VSAAlloc((vsa_t *)vsa, 8);
+	address6 = VSAAlloc((vsa_t *)vsa, 8); 
+	address7 = VSAAlloc((vsa_t *)vsa, 8);
+
+	VSAFree(address2);
+	VSAFree(address3);
+
+	VSAFree(address5);
+	VSAFree(address6);
+	VSAFree(address7);
+	
+	address_a = VSAAlloc((vsa_t *)vsa, 40);
+
+	address2 -= 16;
+	RUN_TEST("IsDataOnTheWayDefragged?", -32 == *(ssize_t *)address2);
+	
+	RUN_TEST("IsFirstFitAllocated?\t", address5 == address_a);
+
+	free(vsa);
+
+	return 0;
+}
+
 
 int VSALargestChunkTest()
 {

@@ -20,7 +20,7 @@
 typedef struct block_header
 {
 	ssize_t block_size;
-	#ifdef NDEBUG
+	#ifndef NDEBUG
     size_t magic_number;
     #endif
 }vsa_block_header_t;
@@ -54,7 +54,7 @@ vsa_t *VSAInit(void *memory_pool, size_t pool_size)
 static void CreateHeaderIMP(void *address, ssize_t block_size, size_t magic_number)
 {
 	BLOCK_SIZE(address) = block_size;
-	#ifdef NDEBUG
+	#ifndef NDEBUG
 	MAGIC_NUMBER(address) = magic_number;
     #endif
 	UNUSE(magic_number);
@@ -117,7 +117,13 @@ static vsa_t *FirstLargeEnoughChunkIMP(vsa_t *vsa, size_t block_size)
 		}
 
 		else 
-		{
+		{	
+			if(header_count >= 0)
+			{
+				total_free_bytes = header_count * HEADER_SIZE + free_bytes_in_block;
+				BLOCK_SIZE(first) = (-1)*total_free_bytes;
+			}
+
 			JumpToNextHeaderIMP(&runner);
 			first = runner;
 			header_count = -1;
@@ -143,7 +149,7 @@ void VSAFree(void *allocated_address)
 	if (NULL != allocated_address)
 	{
 		block_to_free -= HEADER_SIZE;
-		#ifdef NDEBUG
+		#ifndef NDEBUG
 		magic_num_flag = (MAGIC_NUM == MAGIC_NUMBER(block_to_free));
 		#endif
 
