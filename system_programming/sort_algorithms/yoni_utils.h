@@ -19,10 +19,13 @@ test								          \
 #define RUN_TEST(test_name, result) \
 (printf("%s %s\n", test_name, (1 == (result)) ? KGRN"\tPassed"KNRM : KRED"\tFailed"KNRM))
 
+/*Macro which returns min value out of 2 values*/
+#define MIN(val1, val2) (((val1) > (val2)) ? (val2) : (val1))
+
 /*Macro which returns max value out of 2 values*/
 #define MAX(val1, val2) (((val1) > (val2)) ? (val1) : (val2))
 
 #define WORD_SIZE (sizeof(size_t))
 
 /*Macro which returns absolute value of val*/
-#define ABS(val) (((val) < 0) ? (-1)*(val) : (val))
+#define ABS(val) (((val) < 0) ? ((-1)*(val)) : (val))

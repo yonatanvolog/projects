@@ -7,6 +7,7 @@
  **********************************************************************/
 #include <stdlib.h>		/*size_t*/
 #include <sys/types.h>	/*ssize_t*/
+#include <string.h>
 
 #include "yoni_utils.h"	/*utils*/
 
@@ -89,63 +90,9 @@ void SelectionSort(int *arr, size_t size)
 	}
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-size_t GetBucket(void *element, void *param)
+size_t GetBucketIMP(void *element, void *param)
 {
-	return *(size_t *)element + ABS(*(int *)param);
+    return ((*(int *)element) - (*(int *)param));
 }
 
 void CountingSortIMP(const void *arr_to_sort,
@@ -153,18 +100,19 @@ void CountingSortIMP(const void *arr_to_sort,
 					 size_t arr_size,
 					 unsigned int *histogram,
 					 size_t his_size,
-					 size_t (*GetBucket)(void *element, void *param),
+					 size_t (*GetBucketIMP)(void *element, void *param),
 					 void *param,
 					 void *result)
 {
-	size_t i;
-	size_t index_to_increment;
-	size_t index_in_histogram;
+	size_t i = 0;
+	size_t index_to_increment = 0;
+	size_t index_in_histogram = 0;
+	size_t arr_to_sort_i = 0;
 
 	/*populate histogram count*/
-	for(i = 0; i < arr_size; )
+	for(i = 0; i < arr_size; ++i)
 	{
-		index_to_increment = GetBucket((char *)arr_to_sort + (i * element_size), param);
+		index_to_increment = GetBucketIMP((char *)arr_to_sort + (i * element_size), param);
 		++histogram[index_to_increment];
 	}
 
@@ -175,12 +123,15 @@ void CountingSortIMP(const void *arr_to_sort,
 	}
 
 	/*sort elements in result array*/
-	for(i = arr_size - 1; (i > 0) || (i == 0); --i)
+    for (i = arr_size - 1; (int)i >= 0; --i)
 	{
-		index_in_histogram = GetBucket((char *)arr_to_sort + (i * element_size), param);
-		--histogram[index_in_histogram];
-		*((char *)result + (histogram[index_in_histogram] * element_size)) = 
-												*((char *)arr_to_sort + (i * element_size));
+		index_in_histogram = GetBucketIMP((char *)arr_to_sort + (i * element_size), param);
+	
+ 		--histogram[index_in_histogram];
+        arr_to_sort_i = histogram[index_in_histogram];
+		memcpy((char *)result 	   + (arr_to_sort_i * element_size),
+               (char *)arr_to_sort + (i * element_size),
+			 	element_size); 
 	}
 }
 
@@ -190,7 +141,7 @@ int CountingSort(const int *arr,
 				 int max_val,
 				 int *result)
 {	
-	size_t his_size = max_val - min_val;
+	size_t his_size = (max_val - min_val) + 1;
 	unsigned int *histogram = NULL;
 
 	histogram = (unsigned int *)calloc(his_size, sizeof(unsigned int));
@@ -204,7 +155,7 @@ int CountingSort(const int *arr,
 					arr_size,
 					histogram,
 					his_size,
-					GetBucket,
+					GetBucketIMP,
 					&min_val,
 					result);
 

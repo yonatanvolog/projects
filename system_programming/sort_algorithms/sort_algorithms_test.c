@@ -23,16 +23,15 @@ int CountingSortTest();
 
 static int CmpFunc(const void *a, const void *b);
 static void InitArraysIMP(int *arr1, int *arr2, size_t size);
-static void SetMinMaxValuesIMP(int *arr, int *min_val, int *max_val);
 
 
 int main()
 {
     srand(time(NULL));
 
-	/*RUN_SEQUENCE("BubbleSortTest", BubbleSortTest());
+	RUN_SEQUENCE("BubbleSortTest", BubbleSortTest());
 	RUN_SEQUENCE("InsertionSortTest", InsertionSortTest());
-	RUN_SEQUENCE("SelectionSortTest", SelectionSortTest());*/
+	RUN_SEQUENCE("SelectionSortTest", SelectionSortTest());
 	RUN_SEQUENCE("CountingSortTest", CountingSortTest());
 	
 	return 0;
@@ -125,105 +124,41 @@ int SelectionSortTest()
 	return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
 int CountingSortTest()
 {
-	/*int arr1[] = {1};
-	int arr2[] = {1};*/
-
-	int rnd_arr1[ARR_SIZE];
-	int rnd_arr2[ARR_SIZE];
-
-	int min_val = 0;
-	int max_val = 0;
-
-	size_t i = 0;
-	int *result = NULL;
-
-	/*Array with only 1 element*/
-/*	CountingSort(arr1, 1, 1, 1, RESULT_______________________________________);
-	qsort(arr2, 1, sizeof(int), CmpFunc);
-	RUN_TEST("Test", 0 == memcmp(arr1, arr2, (1 * sizeof(int))));*/
-
-
-	result = (int *)malloc(ARR_SIZE * sizeof(int));
-	if(NULL == result)
-	{
-		printf("CountingSortTest malloc failed\n");
-
-		return 1;
-	}	
+	int i = 0, j = 0;
+	int random = 0;
+	int arr1[300] = {0};
+	int arr2[300] = {0};
+	int result[300] = {0};
+	int min = 0;
+	int max = 0;
 	
-	for(i = 1; i <= 1000; ++i)
+	for (j = 0; j < 1000; ++j)
 	{
-		InitArraysIMP(rnd_arr1, rnd_arr2, ARR_SIZE);
-		memcpy(rnd_arr2, rnd_arr1, (ARR_SIZE * sizeof(int)));
+		for (i = 0; i < 300; ++i)
+		{
+			random = rand() % 200;
+			arr1[i] = random;
+			arr2[i] = random;
+		}
 		
-		SetMinMaxValuesIMP(rnd_arr1, &min_val, &max_val);
-		CountingSort(rnd_arr1, ARR_SIZE, min_val, max_val, result);
-		qsort(rnd_arr2, ARR_SIZE, sizeof(int), CmpFunc);
+		min = arr1[0];
+		max = arr1[0];
 
-		RUN_TEST("Test", 0 == memcmp(rnd_arr2, rnd_arr1, (ARR_SIZE * sizeof(int))));
+		for (i = 0; i < 300; ++i)
+		{
+			min = MIN(min, arr1[i]);
+			max = MAX(max, arr1[i]);
+		}
+		
+		CountingSort(arr1, 300, min, max, result);
+		qsort(arr2, 300, sizeof(int), CmpFunc);
+		RUN_TEST("Test", 0 == memcmp(result, arr2, 300*sizeof(int)));
 	}
 
 	return 0;
 }
-
-static void SetMinMaxValuesIMP(int *arr, int *min_val, int *max_val)
-{
-	size_t i = 0;
-	
-	for(i = 0; i < ARR_SIZE; ++i)
-	{
-		if(arr[i] > *max_val)
-		{
-			*max_val = arr[i]; 
-		}
-
-		if(*min_val > arr[i])
-		{
-			*min_val = arr[i]; 
-		}
-	}
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 static int CmpFunc(const void *a, const void *b)
 {

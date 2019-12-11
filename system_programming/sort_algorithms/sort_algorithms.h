@@ -14,16 +14,15 @@ int CountingSort(const int *arr,
 				 int max_val,
 				 int *result);
 
-/*
+
 void CountingSortIMP(const void *arr_to_sort,
 					 size_t element_size,
 					 size_t arr_size,
 					 unsigned int *histogram,
 					 size_t his_size,
-					 size_t (*GetBucket)(void *element
-					 					 void *param),
+					 size_t (*GetBucket)(void *element, void *param),
 					 void *param,
 					 void *result);
-*/
+
 
 
