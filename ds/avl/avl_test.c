@@ -13,6 +13,7 @@
 #include "avl.h"
 #include "yoni_utils.h"
 
+/*Uncomment the line below in order to activate white-box tests*/
 #define WHITE_BOX_TEST
 
 int AVLCreateTest();
@@ -24,6 +25,10 @@ int AVLFindTest();
 int AVLIsEmptyTest();
 int AVLSizeTest();
 int AVLForEachTest();
+int LeftLeftBalanceInsertTest();
+int RightRightBalanceInsertTest();
+int LeftRightBalanceInsertTest();
+int RightLeftBalanceInsertTest();
 
 static int ComparisonFunc(const void *new_data, const void *src_data);
 
@@ -54,6 +59,10 @@ int main()
 	RUN_SEQUENCE("AVLIsEmptyTest", AVLIsEmptyTest());
 	RUN_SEQUENCE("AVLSizeTest", AVLSizeTest());
 	RUN_SEQUENCE("AVLForEachTest", AVLForEachTest());
+	RUN_SEQUENCE("LeftLeftBalanceInsertTest", LeftLeftBalanceInsertTest());
+	RUN_SEQUENCE("RightRightBalanceInsertTest", RightRightBalanceInsertTest());
+	RUN_SEQUENCE("LeftRightBalanceInsertTest", LeftRightBalanceInsertTest());
+	RUN_SEQUENCE("RightLeftBalanceInsertTest", RightLeftBalanceInsertTest());
 
 	return 0;
 }
@@ -101,7 +110,6 @@ int AVLInsertTest()
 	AVLInsert(tree, &insert6);
 	AVLInsert(tree, &insert7);
 
-	/*WHITE_BOX_TEST WILL NOT WORK AFTER BALANCE*/
 #ifdef WHITE_BOX_TEST
 	RUN_TEST("wb insert1", insert1 == *(int *)tree->root->data);
 	RUN_TEST("wb insert2", insert2 == *(int *)tree->root->children[1]->data);
@@ -140,10 +148,10 @@ int AVLRemoveTest()
 	AVLInsert(tree, &insert6);
 	AVLInsert(tree, &insert7);
 
-	/*WHITE_BOX_TEST WILL NOT WORK AFTER BALANCE*/
 	AVLRemove(tree, &insert6);
 	RUN_TEST("find 6", NULL == AVLFind(tree, &insert6));
 	RUN_TEST("size 6", 6 == AVLSize(tree));
+	RUN_TEST("height", 2 == AVLGetHeight(tree));
 #ifdef WHITE_BOX_TEST
 	RUN_TEST("wb remove 6 (leaf)", 
 	9 == *(int *)tree->root->children[1]->children[0]->data);
@@ -152,10 +160,44 @@ int AVLRemoveTest()
 	AVLRemove(tree, &insert2);
 	RUN_TEST("find 2", NULL == AVLFind(tree, &insert6));
 	RUN_TEST("size 2", 5 == AVLSize(tree));
+	RUN_TEST("height", 2 == AVLGetHeight(tree));
 #ifdef WHITE_BOX_TEST
 	RUN_TEST("wb remove 2 (right child, has left child)", 
 	9 == *(int *)tree->root->children[1]->data);
 #endif
+
+	AVLRemove(tree, &insert3);
+	RUN_TEST("find 3", NULL == AVLFind(tree, &insert6));
+	RUN_TEST("size 3", 4 == AVLSize(tree));
+	RUN_TEST("height", 2 == AVLGetHeight(tree));
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("wb remove 3 (right child, has left child)", 
+	1 == *(int *)tree->root->children[0]->children[0]->data);
+#endif
+
+	AVLRemove(tree, &insert1);
+	RUN_TEST("find 1", NULL == AVLFind(tree, &insert6));
+	RUN_TEST("size 1", 3 == AVLSize(tree));
+	RUN_TEST("height", 2 == AVLGetHeight(tree));
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("wb remove 1 (right child, has left child)", 
+	9 == *(int *)tree->root->data);
+#endif
+
+	AVLRemove(tree, &insert4);
+	RUN_TEST("find 4", NULL == AVLFind(tree, &insert6));
+	RUN_TEST("size 4", 2 == AVLSize(tree));
+	RUN_TEST("height", 1 == AVLGetHeight(tree));
+
+	AVLRemove(tree, &insert5);
+	RUN_TEST("find 5", NULL == AVLFind(tree, &insert6));
+	RUN_TEST("size 5", 1 == AVLSize(tree));
+	RUN_TEST("height(only root left)", 0 == AVLGetHeight(tree));
+
+	AVLRemove(tree, &insert7);
+	RUN_TEST("find 7", NULL == AVLFind(tree, &insert6));
+	RUN_TEST("size 7", 0 == AVLSize(tree));
+	/*now tree is empty*/
 
 	AVLDestroy(tree);
 	
@@ -190,7 +232,6 @@ int AVLGetHeightTest()
 	RUN_TEST("insert6", 2 == AVLGetHeight(tree));
 	AVLInsert(tree, &insert7);
 	RUN_TEST("insert7", 2 == AVLGetHeight(tree));
-
 	AVLInsert(tree, &insert8);
 	RUN_TEST("insert8", 3 == AVLGetHeight(tree));
 
@@ -329,7 +370,7 @@ int AVLForEachTest()
 	AVLInsert(tree, &insert7);
 
 	AVLForEach(tree, CounterFunc, &counter);
-	printf("counter: %ld\n", counter);			/*Yarin please take a look*/
+	RUN_TEST("counter\t\t", 7 == counter);
 
 	AVLForEach(tree, AddOne, &add_value);
 	RUN_TEST("updated insert1", 9 == insert1);
@@ -345,9 +386,137 @@ int AVLForEachTest()
 	return 0;
 }
 
+int LeftLeftBalanceInsertTest()
+{
+	int insert1 = 3;
+	int insert2 = 2;
+	int insert3 = 1;
 
+	avl_t *tree = AVLCreate(ComparisonFunc);
+	assert(tree);
+	
+	AVLInsert(tree, &insert1);
+	AVLInsert(tree, &insert2);
+	AVLInsert(tree, &insert3);
 
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("left_left wb place", insert2 == *(int *)tree->root->data);
+	RUN_TEST("left_left wb place", insert3 == *(int *)tree->root->children[0]->data);
+	RUN_TEST("left_left wb place", insert1 == *(int *)tree->root->children[1]->data);
 
+	RUN_TEST("left_left wb NULL", NULL == tree->root->children[0]->children[0]);
+	RUN_TEST("left_left wb NULL", NULL == tree->root->children[0]->children[1]);
+	RUN_TEST("left_left wb NULL", NULL == tree->root->children[1]->children[0]);
+	RUN_TEST("left_left wb NULL", NULL == tree->root->children[1]->children[1]);
+
+	RUN_TEST("left_left wb height", 1 == (size_t)tree->root->height);
+	RUN_TEST("left_left wb height", 0 == (size_t)tree->root->children[0]->height);
+	RUN_TEST("left_left wb height", 0 == (size_t)tree->root->children[1]->height);
+#endif
+
+	AVLDestroy(tree);
+	
+	return 0;
+}
+
+int RightRightBalanceInsertTest()
+{
+	int insert1 = 1;
+	int insert2 = 2;
+	int insert3 = 3;
+
+	avl_t *tree = AVLCreate(ComparisonFunc);
+	assert(tree);
+	
+	AVLInsert(tree, &insert1);
+	AVLInsert(tree, &insert2);
+	AVLInsert(tree, &insert3);
+
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("right_right wb place", insert2 == *(int *)tree->root->data);
+	RUN_TEST("right_right wb place", insert1 == *(int *)tree->root->children[0]->data);
+	RUN_TEST("right_right wb place", insert3 == *(int *)tree->root->children[1]->data);
+
+	RUN_TEST("right_right wb NULL", NULL == tree->root->children[0]->children[0]);
+	RUN_TEST("right_right wb NULL", NULL == tree->root->children[0]->children[1]);
+	RUN_TEST("right_right wb NULL", NULL == tree->root->children[1]->children[0]);
+	RUN_TEST("right_right wb NULL", NULL == tree->root->children[1]->children[1]);
+
+	RUN_TEST("right_right wb height", 1 == (size_t)tree->root->height);
+	RUN_TEST("right_right wb height", 0 == (size_t)tree->root->children[0]->height);
+	RUN_TEST("right_right wb height", 0 == (size_t)tree->root->children[1]->height);
+#endif
+
+	AVLDestroy(tree);
+	
+	return 0;
+}
+
+int LeftRightBalanceInsertTest()
+{
+	int insert1 = 5;
+	int insert2 = 2;
+	int insert3 = 3;
+
+	avl_t *tree = AVLCreate(ComparisonFunc);
+	assert(tree);
+	
+	AVLInsert(tree, &insert1);
+	AVLInsert(tree, &insert2);
+	AVLInsert(tree, &insert3);
+
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("left_right wb place", insert3 == *(int *)tree->root->data);
+	RUN_TEST("left_right wb place", insert2 == *(int *)tree->root->children[0]->data);
+	RUN_TEST("left_right wb place", insert1 == *(int *)tree->root->children[1]->data);
+
+	RUN_TEST("left_right wb NULL", NULL == tree->root->children[0]->children[0]);
+	RUN_TEST("left_right wb NULL", NULL == tree->root->children[0]->children[1]);
+	RUN_TEST("left_right wb NULL", NULL == tree->root->children[1]->children[0]);
+	RUN_TEST("left_right wb NULL", NULL == tree->root->children[1]->children[1]);
+
+	RUN_TEST("left_right wb height", 1 == (size_t)tree->root->height);
+	RUN_TEST("left_right wb height", 0 == (size_t)tree->root->children[0]->height);
+	RUN_TEST("left_right wb height", 0 == (size_t)tree->root->children[1]->height);
+#endif
+
+	AVLDestroy(tree);
+	
+	return 0;
+}
+
+int RightLeftBalanceInsertTest()
+{
+	int insert1 = 2;
+	int insert2 = 5;
+	int insert3 = 3;
+
+	avl_t *tree = AVLCreate(ComparisonFunc);
+	assert(tree);
+	
+	AVLInsert(tree, &insert1);
+	AVLInsert(tree, &insert2);
+	AVLInsert(tree, &insert3);
+
+#ifdef WHITE_BOX_TEST
+	RUN_TEST("right_left wb place", insert3 == *(int *)tree->root->data);
+	RUN_TEST("right_left wb place", insert1 == *(int *)tree->root->children[0]->data);
+	RUN_TEST("right_left wb place", insert2 == *(int *)tree->root->children[1]->data);
+
+	RUN_TEST("right_left wb NULL", NULL == tree->root->children[0]->children[0]);
+	RUN_TEST("right_left wb NULL", NULL == tree->root->children[0]->children[1]);
+	RUN_TEST("right_left wb NULL", NULL == tree->root->children[1]->children[0]);
+	RUN_TEST("right_left wb NULL", NULL == tree->root->children[1]->children[1]);
+
+	RUN_TEST("right_left wb height", 1 == (size_t)tree->root->height);
+	RUN_TEST("right_left wb height", 0 == (size_t)tree->root->children[0]->height);
+	RUN_TEST("right_left wb height", 0 == (size_t)tree->root->children[1]->height);
+#endif
+
+	AVLDestroy(tree);
+	
+	return 0;
+}
 
 static int ComparisonFunc(const void *new_data, const void *src_data)
 {
