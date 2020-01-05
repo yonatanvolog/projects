@@ -12,7 +12,7 @@
 #include "slist.h"
 #include "stack.h"
 #include "recursion.h"
-#include "yoni_utils.h"
+#include "../../yoni_utils.h"
 
 unsigned long IterativeFibonacci(unsigned int n)
 {

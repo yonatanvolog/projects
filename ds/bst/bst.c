@@ -10,7 +10,7 @@
 #include <assert.h>		/*assert*/
 
 #include "bst.h"		/*bst*/
-#include "yoni_utils.h"	/*utils*/
+#include "../../yoni_utils.h"
 
 #define YES 1
 #define NO -1

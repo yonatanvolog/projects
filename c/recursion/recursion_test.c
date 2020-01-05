@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include "recursion.h"
-#include "yoni_utils.h"
+#include "../../yoni_utils.h"
 
 int IterativeFibonacciTest();
 int RecursiveFibonacciTest();

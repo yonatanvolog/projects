@@ -9,7 +9,7 @@
 #include <stdlib.h>		/*malloc*/
 
 #include "fsa.h"		/*fsa*/
-#include "yoni_utils.h"	/*utilities*/
+#include "../../yoni_utils.h"
 
 #define FSA_SIZE	sizeof(fsa_t)
 #define HEADER_SIZE sizeof(fsa_block_header_t)

@@ -7,10 +7,11 @@
  **********************************************************************/
 
 #include <stdio.h>	/*printf*/
+#include <stdlib.h>
 
 #include "bst.h"	
-#include "yoni_utils.h"	
-#include <stdlib.h>
+#include "../../yoni_utils.h"
+
 
 #define WHITE_BOX_TEST
 

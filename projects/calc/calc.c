@@ -14,7 +14,7 @@
 
 #include "stack.h"
 #include "calc.h"
-#include "yoni_utils.h"
+#include "../../yoni_utils.h"
 
 #define NUM_OF_CHARS 256
 #define LARGEST_ASCII_OF_OP ('/')

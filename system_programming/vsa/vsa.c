@@ -9,7 +9,7 @@
 #include <assert.h>			/*assert*/
 
 #include "vsa.h"			/*vsa*/
-#include "yoni_utils.h"		/*utils*/
+#include "../../yoni_utils.h"
 
 #define HEADER_SIZE 		sizeof(vsa_block_header_t)
 #define MAGIC_NUM 			12345

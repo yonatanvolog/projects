@@ -7,7 +7,7 @@
 #include <stdio.h>	/*printf*/
 
 #include "calc.h"
-#include "yoni_utils.h"
+#include "../../yoni_utils.h"
 
 int PlusMinusTest();
 int MultiplicationTest();

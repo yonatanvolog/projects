@@ -9,7 +9,7 @@
 #include <stdlib.h>			/*malloc*/
 
 #include "vsa.h"			/*vsa*/
-#include "yoni_utils.h"		/*utils*/
+#include "../../yoni_utils.h"
 
 #define HEADER_SIZE	8
 #define MAGIC_NUM 	12345

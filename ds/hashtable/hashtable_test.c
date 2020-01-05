@@ -12,7 +12,7 @@
 #include <math.h>	/*sqrt*/
 
 #include "hashtable.h"
-#include "yoni_utils.h"
+#include "../../yoni_utils.h"
 
 /*Uncomment the line below in order to activate white-box tests*/
 #define WHITE_BOX_TEST

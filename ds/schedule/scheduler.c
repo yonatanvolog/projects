@@ -14,7 +14,7 @@
 #include "uid.h"		/*unique ID*/
 #include "task.h"		/*task*/
 #include "scheduler.h"	/*scheduler*/
-#include "yoni_utils.h"	/*utilities*/
+#include "../../yoni_utils.h"
 
 struct scheduler
 {
