@@ -17,7 +17,7 @@ test								          \
 
 /*Macro to run tests in test function*/
 #define RUN_TEST(test_name, result) \
-(printf("%s %s\n", test_name, (1 == (result)) ? KGRN"\tPassed"KNRM : KRED"\tFailed"KNRM))
+(printf("%-40s %s\n", test_name, (1 == (result)) ? KGRN"\tPassed"KNRM : KRED"\tFailed"KNRM))
 
 /*Macro which returns min value out of 2 values*/
 #define MIN(val1, val2) (((val1) > (val2)) ? (val2) : (val1))
