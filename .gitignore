@@ -8,3 +8,4 @@
 !*.md
 !.gitignore
 ![Mm]akefile
+!*.java
