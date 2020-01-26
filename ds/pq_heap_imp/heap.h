@@ -10,7 +10,6 @@
 #define ILRD_HEAP_H
 
 #include <stddef.h> /* size_t */
-#include "vector.h"
 #include "heapify.h"
 
 typedef struct heap heap_t;

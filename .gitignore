@@ -9,3 +9,5 @@
 !.gitignore
 ![Mm]akefile
 !*.java
+!*.jar
+
