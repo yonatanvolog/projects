@@ -4,7 +4,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import il.co.ilrd.hash_map.HashMap;
-import sun.rmi.transport.ObjectTable;
 
 public class Factory<T, K, D> {
 	private Map<K, Function<D, ? extends T>> map 
@@ -21,12 +20,10 @@ public class Factory<T, K, D> {
 	public T create(K key) {
 		return map.get(key).apply(null);
 	}
-
 	
-	
-	public void add(String key, Object cat) {
-		map.put(key, cat);  //what to do with this?	
-	}
+//	public void add(String key, Object cat) {
+//		map.put(key, cat);  //what to do with this?	
+//	}
 }
 
 abstract class Animal {

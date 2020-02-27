@@ -7,9 +7,16 @@ import il.co.ilrd.pair.Pair;
 public class HashMap<K,V> implements Map<K, V> {
 	private int capacity;
 	private List<List<Pair<K, V>>> entries;
+	private static final int DEFAULT_CAPACITY = 16;
+	
+	private entrySet entrySet;
+	private KeySet keySet;
+	private ValueCollection valueCollection;
+
+	private int modCounter = 0;
 	
 	public HashMap() {
-		this(10);
+		this(DEFAULT_CAPACITY);
 	}
 	
 	public HashMap(int capacity) {
@@ -23,6 +30,7 @@ public class HashMap<K,V> implements Map<K, V> {
 	
 	@Override
 	public void clear() {
+		++modCounter;
 		for (List<Pair<K, V>> list : entries) {
 			list.clear();
 		}
@@ -40,8 +48,8 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public boolean containsValue(Object value) {
-		ValueSet valSet = new ValueSet();
-		for (V valueInPair : valSet) {
+		ValueCollection valCollection = new ValueCollection();
+		for (V valueInPair : valCollection) {
 			if(valueInPair.equals(value)) {
 				return true;
 			}
@@ -52,7 +60,11 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public Set<Map.Entry<K, V>> entrySet() {
-		return new EntrySet();
+		if(null == entrySet) {
+			entrySet = new entrySet();
+		}
+
+		return entrySet;
 	}
 	
 	@Override
@@ -97,7 +109,11 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public Set<K> keySet() {
-		return new KeySet();
+		if(null == keySet) {
+			keySet = new KeySet();
+		}
+		
+		return keySet;
 	}
 	
 	private int getBucket(Object key) {
@@ -106,6 +122,7 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public V put(K key, V value) {
+		++modCounter;
 		
 		V prevValue = null;
 
@@ -125,6 +142,7 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public void putAll(Map<? extends K, ? extends V> value) {
+		++modCounter;
 		for(Map.Entry<? extends K, ? extends V> entry: value.entrySet()) {
 			put(entry.getKey(), entry.getValue());
 		}
@@ -132,10 +150,7 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public V remove(Object key) {
-		if(null == key) {
-			return null;			
-		}
-
+		++modCounter;
 		List<Pair<K, V>> bucket = getBucketByKey(key);
 		
 		int index = 0;
@@ -166,15 +181,19 @@ public class HashMap<K,V> implements Map<K, V> {
 
 	@Override
 	public Collection<V> values() {
-		return new ValueSet();
+		if(null == valueCollection) {
+			valueCollection = new ValueCollection();
+		}
+		
+		return valueCollection;
 	}
 	
-	private class ValueSet extends AbstractSet<V> implements Iterator<V>{
-		Iterator<Map.Entry<K, V>> entryIter = new EntrySet().iterator();
-			 
+	private class ValueCollection extends AbstractSet<V> implements Iterator<V>{
+		Iterator<Map.Entry<K, V>> entryIter = new entrySet().iterator();
+		
 		@Override
 		public Iterator<V> iterator() {
-			return new ValueSet();
+			return new ValueCollection();
 		}
 		
 		public boolean hasNext() {
@@ -191,8 +210,8 @@ public class HashMap<K,V> implements Map<K, V> {
 		}
 	}	
 	
-	private class EntrySet extends AbstractSet<Map.Entry<K, V>>{
-
+	private class entrySet extends AbstractSet<Map.Entry<K, V>>{
+		
 		@Override
 		final public Iterator<Map.Entry<K, V>> iterator() {
 			return new EntryIterator();
@@ -206,6 +225,8 @@ public class HashMap<K,V> implements Map<K, V> {
 		private class EntryIterator implements Iterator<Map.Entry<K, V>>{
 			Iterator<List<Pair<K, V>>> outer = entries.listIterator();
 			Iterator<Pair<K, V>> inner = outer.next().listIterator();
+			
+			int currentMod = modCounter;
 			
 			{
 				while(!inner.hasNext() && outer.hasNext()) {
@@ -222,13 +243,18 @@ public class HashMap<K,V> implements Map<K, V> {
 				return false;
 			}
 
-			@Override
-			public Entry<K, V> next() {
+			@Override 
+			public Entry<K, V> next() throws ConcurrentModificationException{
+				if(currentMod != modCounter) {
+					throw new ConcurrentModificationException();
+				}
+				
 				Pair<K, V> pairToReturn = inner.next();
 
 				while(!inner.hasNext() && outer.hasNext()) {
 					inner = outer.next().listIterator();
 				}
+				
 				return pairToReturn;
 			}
 			
@@ -236,8 +262,8 @@ public class HashMap<K,V> implements Map<K, V> {
 	}
 	
 	private class KeySet extends AbstractSet<K> implements Iterator<K>{
-		Iterator<Map.Entry<K, V>> entryIter = new EntrySet().iterator();
-			 
+		Iterator<Map.Entry<K, V>> entryIter = new entrySet().iterator();
+				
 		@Override
 		public Iterator<K> iterator() {
 			return new KeySet();
@@ -247,7 +273,7 @@ public class HashMap<K,V> implements Map<K, V> {
 			return entryIter.hasNext();
 		}
 		
-		public K next() {
+		public K next() {			
 			return entryIter.next().getKey();
 		}
 
