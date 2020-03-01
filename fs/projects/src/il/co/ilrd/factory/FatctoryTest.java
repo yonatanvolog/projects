@@ -38,16 +38,25 @@ public class FatctoryTest {
 		Animal nonStaticCatInst = animalFactory.create("nsCat", null);
 		nonStaticCatInst.sayHello();
 		
-//		/**************/System.out.println("Particular Factory:");/************/
-//		List<Cat> catList = new ArrayList<>();
-//		catList.add(new Cat());
+		/**************/System.out.println("Particular Factory:");/************/
+		//List<Cat> catList = new ArrayList<>();
+		//catList.add(new Cat());
+	
+		Factory<Animal, String, Cat> newAnimalFactory = new Factory<>();
+
+		newAnimalFactory.add("nCat", Cat::nonStaticCreateCatAux);
+		Animal someCat = newAnimalFactory.create("nCat", new Cat());
+		someCat.sayHello();
+		
+//		
+//		
 //		animalFactory.add("nCat", new Cat());
 //
 //		for(Cat arbitraryCat : catList) {
-//			animalFactory.add("pCat", Cat::nonStaticCreateCat);
+//			animalFactory.add("nCat", Cat::nonStaticCreateCat);
 //		}
 //		Animal someCat = animalFactory.create("pCat", null);
-//		someCat.sayHello();
-//		//very similar to a reference to a static method
+	//	someCat.sayHello();
+		//very similar to a reference to a static method
 	}
 }

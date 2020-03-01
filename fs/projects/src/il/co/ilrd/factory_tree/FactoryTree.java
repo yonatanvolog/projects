@@ -21,11 +21,8 @@ public class FactoryTree {
 	
 	{
 		componentFactory = new Factory<>();
-		Function<String, FileComponent> createFile =  (str) -> new FileT(str);
-		Function<String, FileComponent> createFolder = (str) -> new FolderT(str);
-		
-		componentFactory.add(true, createFile);
-		componentFactory.add(false, createFolder);
+		componentFactory.add(true, (str) -> new FileT(str));
+		componentFactory.add(false, (str) -> new FolderT(str));
 	}
 	
 	/****************************************************/

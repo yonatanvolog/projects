@@ -107,11 +107,11 @@ class TestHashMap {
 	@Test
 	public void get() {		
 		map.put("key1", 1);
-	//	assertEquals(1, map.get("key1"));
+		assertEquals((Integer)1, map.get("key1"));
 		assertEquals(null, map.get("key2"));
 		
 		map.put("key1", 2);
-		//assertEquals(2, map.get("key1"));
+		assertEquals((Integer)2, map.get("key1"));
 	}
 	
 	@Test
@@ -154,7 +154,7 @@ class TestHashMap {
 	@Test
 	public void put() {		
 		assertEquals(null, map.put("key1", 1));
-	//	assertEquals(1, map.put("key1", 2));
+		assertEquals((Integer)1, map.put("key1", 2));
 		assertEquals(null, map.put("key2", 1));
 		assertEquals(null, map.put("key3", 1));		
 	}
@@ -189,11 +189,11 @@ class TestHashMap {
 	@Test
 	public void remove() {
 		map.put("key1", 1);
-	//	assertEquals(1, map.remove("key1"));
+		assertEquals((Integer)1, map.remove("key1"));
 		assertEquals(null, map.remove("key2"));
 		
 		map.put("key1", 2);
-	//	assertEquals(2, map.remove("key1"));
+		assertEquals((Integer)2, map.remove("key1"));
 
 		assertEquals(null, map.remove("key5"));
 	}

@@ -20,10 +20,6 @@ public class Factory<T, K, D> {
 	public T create(K key) {
 		return map.get(key).apply(null);
 	}
-	
-//	public void add(String key, Object cat) {
-//		map.put(key, cat);  //what to do with this?	
-//	}
 }
 
 abstract class Animal {
@@ -52,6 +48,10 @@ class Cat extends Animal {
 		return new Cat();
 	}
 	Animal nonStaticCreateCat(Object data) {
+		return new Cat();
+	}
+	
+	Cat nonStaticCreateCatAux() {
 		return new Cat();
 	}
 }
