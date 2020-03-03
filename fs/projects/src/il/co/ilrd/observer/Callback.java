@@ -1,7 +1,6 @@
 package il.co.ilrd.observer;
 
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 public class Callback <T>{
 	private Dispatcher <T> dispatcher;
@@ -17,19 +16,24 @@ public class Callback <T>{
 	}
 	
 	public void update(T param) {
-		
+		if(null != updateCallback) {
+			updateCallback.accept(param);			
+		}
 	}
 	
 	public void setUpdateCallback(Consumer<T> updateCallbackFuncConsumer) {
+		updateCallback = updateCallbackFuncConsumer;
 	}
 	
 	public void stopUpdate() {
-		
+		if(null != stopUpdateCallback) {
+			stopUpdateCallback.accept(null);			
+		}
 	}
-	public Dispatcher getDispatcher() {
+	public Dispatcher<T> getDispatcher() {
 		return dispatcher;
 	}
-	public void setDispatcher(Dispatcher dispatcher) {
+	public void setDispatcher(Dispatcher<T> dispatcher) {
 		this.dispatcher = dispatcher;
 	}
 }
