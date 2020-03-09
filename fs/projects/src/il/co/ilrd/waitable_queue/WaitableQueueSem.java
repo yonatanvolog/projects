@@ -1,4 +1,4 @@
-package il.co.ilrd.WaitableQueue;
+package il.co.ilrd.waitable_queue;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;
@@ -15,7 +15,7 @@ public class WaitableQueueSem<T> {
 	Lock lock = new  ReentrantLock();
 	
 	public WaitableQueueSem() {
-		queue = new PriorityQueue<>();
+		this(null);
 	}
 	
 	public WaitableQueueSem(Comparator<T> comp) {
@@ -53,12 +53,17 @@ public class WaitableQueueSem<T> {
 	public boolean remove (T elem) throws InterruptedException {
 		boolean removeRes = false;
 		
-		while(!lock.tryLock()) {}
-		removeRes = queue.remove(elem);
-		lock.unlock();
-		
-		if(removeRes) { 
-			sem.acquire();			
+		if(sem.tryAcquire()) {
+			if(lock.tryLock()) {
+				removeRes = queue.remove(elem);
+				if(!removeRes) {
+					sem.release();
+				}
+				lock.unlock();
+			}
+			else {
+				sem.release();
+			}
 		}
 		
 		return removeRes;

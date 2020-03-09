@@ -1,4 +1,4 @@
-package il.co.ilrd.WaitableQueue;
+package il.co.ilrd.waitable_queue;
 
 import java.util.Comparator;
 import java.util.PriorityQueue;
@@ -14,7 +14,7 @@ public class WaitableQueueCondVar<T> {
 	Condition condition = lock.newCondition();
 	
 	public WaitableQueueCondVar() {
-		queue = new PriorityQueue<>();
+		this(null);
 	}
 	
 	public WaitableQueueCondVar(Comparator<T> comp) {
@@ -24,15 +24,13 @@ public class WaitableQueueCondVar<T> {
 	public void enqueue (T elem) {
 		lock.lock();
 		queue.add(elem);
-		condition.signal();
+		condition.signalAll();
 		lock.unlock();
 	}
 
 	public T dequeue() throws InterruptedException {		
-
 		lock.lock();
-		if(queue.isEmpty())
-		{
+		while(queue.isEmpty()) {
 			condition.await();
 		}
 		
@@ -43,13 +41,14 @@ public class WaitableQueueCondVar<T> {
 	}
 	
 	public T dequeue(long timeout,  TimeUnit timeunit) throws InterruptedException {
-		T data = null;
-
 		lock.lock();
-		if (queue.isEmpty() & !condition.await(timeout, timeunit)) {
-			return null;
+		while(queue.isEmpty()) {
+			if(!condition.await(timeout, timeunit)) {
+				lock.unlock();
+				return null;
+			}
 		}
-		data = queue.poll();
+		T data = queue.poll();
 		lock.unlock();
 
 		return data;
@@ -58,9 +57,10 @@ public class WaitableQueueCondVar<T> {
 	public boolean remove (T elem) throws InterruptedException {
 		boolean removeRes = false;
 		
-		while(!lock.tryLock()) {}
-		removeRes = queue.remove(elem);
-		lock.unlock();
+		if(lock.tryLock()) {
+			removeRes = queue.remove(elem);
+			lock.unlock();
+		}
 		
 		return removeRes;
 	}

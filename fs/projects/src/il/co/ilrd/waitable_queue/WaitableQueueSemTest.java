@@ -1,8 +1,8 @@
-package il.co.ilrd.WaitableQueue;
+package il.co.ilrd.waitable_queue;
 
 import java.util.concurrent.TimeUnit;
 
-public class WaitableQueueTest {
+public class WaitableQueueSemTest {
 
 	public static void main(String[] args) {
 		WaitableQueueSem<Integer> queue = new WaitableQueueSem<>();
@@ -42,15 +42,9 @@ public class WaitableQueueTest {
 
 		
 		
-		dequeueT.start();	
-		enqueueT.start();
+		//dequeueT.start();	
+		//enqueueT.start();
 
-		
-		
-		
-		
-
-		
 		
 		Thread dequeueTimedT = new Thread(new Runnable() {
 			@Override
@@ -75,12 +69,7 @@ public class WaitableQueueTest {
 		
 		//dequeueTimedT.start();
 		
-		
-		
-		
-		
-		
-		
+
 		
 		Thread removeT = new Thread(new Runnable() {
 			@Override

@@ -1,32 +1,60 @@
 package il.co.ilrd.test;
 
-class Second extends Thread {
-	public void run() {
-		System.out.println("thread2");
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+
+class RingRing<V> implements Callable<V>{
+	@Override
+	public V call() throws Exception {
+		return (V) "Ringing Eyal";
 	}
 }
 
 
+
 public class MiscTests {
 
-	public static void main(String[] args) {
-		Thread t1 = new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				System.out.println("theead1");
-			}
+	public static void main(String[] args) throws InterruptedException, ExecutionException {
+		ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+		executorService.execute(new Runnable() {
+		    public void run() {
+		        System.out.println("Asynchronous task");
+		    }
 		});
+
+	
+	
+		Future<String> result = executorService.submit(new RingRing<String>());
 		
-		Thread t2 = new Thread (new Runnable() {
-			
-			@Override
-			public void run() {
-				System.out.println("theead12222");
-			}
-		});
+		executorService.shutdown();
+
+		System.out.println(result.get());
 		
-		t1.start();
-		t2.start();
+		
+		
+		
+		ExecutorService es1 = Executors.newSingleThreadExecutor();
+		Future<String> result1 = es1.submit(new RingRing<String>());
+		
+		ExecutorService es2 = Executors.newFixedThreadPool(1);
+		Future<String> result2 = es2.submit(new RingRing<String>());
+		
+		ExecutorService es3 = Executors.newCachedThreadPool();
+		Future<String> result3 = es3.submit(new RingRing<String>());
+		
+		ExecutorService es4 = Executors.newScheduledThreadPool(5);
+		Future<String> result4 = es4.submit(new RingRing<String>());
+		
+		System.out.println("a" + result1.get());
+		System.out.println("b" + result2.get());
+		System.out.println("c" + result3.get());
+		System.out.println("d" + result4.get());
+
+
 	}
 }
