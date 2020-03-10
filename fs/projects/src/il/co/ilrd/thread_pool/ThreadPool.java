@@ -13,7 +13,8 @@ import java.util.concurrent.TimeoutException;
 import il.co.ilrd.waitable_queue.WaitableQueueSem;
 
 public class ThreadPool implements Executor {	
-	private List<Thread> threadsList = new ArrayList<>();
+	/*not sure about the list type (maybe list of Thread)*/
+	private List<TPThread<?>> threadsList = new ArrayList<>();
 	private WaitableQueueSem<ThreadPoolTask<?>> tasksQueue = new WaitableQueueSem<>();;
 	private final static int DEAFULT_NUM_THREADS = Runtime.getRuntime().availableProcessors();
 	private int numOfThreads;
@@ -29,31 +30,34 @@ public class ThreadPool implements Executor {
 		this(DEAFULT_NUM_THREADS);
 	}
 	
-	public ThreadPool(int num) {
-		numOfThreads = num;
-		for(int i = 0; i < numOfThreads; ++i) {
-			threadsList.add(new Thread());
+	public <T> ThreadPool(int num) {
+		for (; num > 0; --num) {
+			threadsList.add(new TPThread<T>());
+			System.out.println("new thread " + num); //debug
 		}
-		for (Thread thread : threadsList) {
+		
+		for(TPThread<?> thread: threadsList) {
 			thread.start();
 		}
 	}
 	
-	private class TPThread<T> implements Runnable {
-		@SuppressWarnings("unchecked")
+	private class TPThread<T> extends Thread {
 		@Override
 		public void run() {
-			ThreadPoolTask<T> currTask;
 			while(toRun) {
 				try {
-					currTask = (ThreadPoolTask<T>) tasksQueue.dequeue();
-					currTask.runTask();
-				} catch (Exception e) {
+					ThreadPoolTask task = tasksQueue.dequeue();
+					Future taskFuture = task.runTask();
+					//work in progress
+				
+				
+				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-			
+				
 			}
+			System.out.println("running thread "); //debug
 		}
 	}
 	
@@ -61,10 +65,8 @@ public class ThreadPool implements Executor {
 		return null;
 	}
 	
-	public <T> Future<T> submitTask(Callable<T> callable, TaskPriority taskPriority) { /* this is the main method*/
-		ThreadPoolTask<T> poolTask= new ThreadPoolTask<T>(taskPriority, callable);
-		tasksQueue.enqueue(poolTask);
-		return poolTask.getFuture();
+	public <T> Future<T> submitTask(Callable<T> callable, TaskPriority taskPriority) {
+		return null;
 	}
 	
 	public Future<Void> submitTask(Runnable runnable, TaskPriority taskPriority) {
@@ -123,9 +125,6 @@ public class ThreadPool implements Executor {
 		}
 		
 		private void runTask() throws Exception {
-			taskFuture.returnObj = callable.call();
-			taskFuture.isDone = true;
-			runTaskSem.release();
 		}
 		
 		private class TaskFuture implements Future<T> {
@@ -140,9 +139,7 @@ public class ThreadPool implements Executor {
 
 			@Override
 			public T get() throws InterruptedException, ExecutionException {
-				runTaskSem.acquire();
-				
-				return returnObj;
+				return null;
 			}
 
 			@Override
@@ -159,12 +156,9 @@ public class ThreadPool implements Executor {
 
 			@Override
 			public boolean isDone() {
-				// TODO Auto-generated method stub
 				return isDone;
 			}
 			
 		}
-	}
-	
-	
+	}	
 }
