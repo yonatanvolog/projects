@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -18,7 +19,8 @@ public class ThreadPool implements Executor {
 	private WaitableQueueSem<ThreadPoolTask<?>> tasksQueue = new WaitableQueueSem<>();;
 	private final static int DEAFULT_NUM_THREADS = Runtime.getRuntime().availableProcessors();
 	private int numOfThreads;
-	private boolean toRun = true;
+	private final static int VIP_PRIORITY = 100;
+
 	
 	public enum TaskPriority {
 		MIN,
@@ -30,28 +32,41 @@ public class ThreadPool implements Executor {
 		this(DEAFULT_NUM_THREADS);
 	}
 	
+	
+	private void AddAndStartThread() {
+		TPThread<?> newThread = new TPThread<>();
+		threadsList.add(newThread);
+		newThread.start();	
+	}
+	
 	public <T> ThreadPool(int num) {
+		numOfThreads = num;
+		
 		for (; num > 0; --num) {
-			threadsList.add(new TPThread<T>());
+			AddAndStartThread();
 			System.out.println("new thread " + num); //debug
 		}
 		
-		for(TPThread<?> thread: threadsList) {
-			thread.start();
-		}
+//		for (; num > 0; --num) {
+//			threadsList.add(new TPThread<T>());
+//			System.out.println("new thread " + num); //debug
+//		}
+//		
+//		for(TPThread<?> thread: threadsList) {
+//			thread.start();
+//		}
 	}
 	
 	private class TPThread<T> extends Thread {
+		private boolean toRun = true;
+
 		@Override
 		public void run() {
 			while(toRun) {
 				try {
-					ThreadPoolTask task = tasksQueue.dequeue();
-					Future taskFuture = task.runTask();
-					//work in progress
-				
-				
-				} catch (InterruptedException e) {
+					tasksQueue.dequeue().runTask();
+					
+				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
@@ -61,29 +76,59 @@ public class ThreadPool implements Executor {
 		}
 	}
 	
+	private <T> Future<T> submitTaskGeneric(Callable<T> callable, int taskPriority) {
+		ThreadPoolTask<T> newTask = new ThreadPoolTask<T>(taskPriority, callable);
+		tasksQueue.enqueue(newTask);
+		
+		return newTask.getFuture();
+	}
+	
 	public <T> Future<T> submitTask(Callable<T> callable) {
-		return null;
+		return submitTaskGeneric(callable, TaskPriority.NORM.ordinal());
 	}
 	
 	public <T> Future<T> submitTask(Callable<T> callable, TaskPriority taskPriority) {
-		return null;
+		return submitTaskGeneric(callable, taskPriority.ordinal());
 	}
 	
 	public Future<Void> submitTask(Runnable runnable, TaskPriority taskPriority) {
-		return null;
-	}
-	
-	public <T> Future<T> submitTask(Runnable runnable, TaskPriority taskPriority, T t) {
-		return null;
-	}
-	
-	public void setNumberOfThread(int num) {
+		Callable<Void> callableObj = Executors.callable(runnable, null);
 		
+		return submitTaskGeneric(callableObj, taskPriority.ordinal());
+	}
+	
+	public <T> Future<T> submitTask(Runnable runnable, TaskPriority taskPriority, T result) {
+		Callable<T> callableObj = Executors.callable(runnable, result);
+		
+		return submitTaskGeneric(callableObj, taskPriority.ordinal());
+	}
+	
+	
+	public void setNumberOfThread(int updatedThreadsNum) {
+		if(updatedThreadsNum > this.numOfThreads) {
+			for(int i = 0; i < updatedThreadsNum - this.numOfThreads; ++i) {
+				AddAndStartThread();
+			}
+		} else {
+			class stopTask<T> implements Callable<T> {
+				@Override
+				public T call() throws Exception {
+					TPThread<?> currentThread = (TPThread<?>)Thread.currentThread();
+					currentThread.toRun = false;
+					System.err.println("stopTaskStopped task");
+					return null;
+				}
+			}
+			
+			for(int i = 0; i < this.numOfThreads - updatedThreadsNum; ++i) {	
+				this.submitTaskGeneric(new stopTask<Void>(), VIP_PRIORITY);
+			}
+		}
 	}
 	
 	@Override
-	public void execute(Runnable runnable) {
-		
+	public void execute(Runnable runnable) {//exceptions?
+		submitTask(runnable, TaskPriority.NORM);
 	}
 	
 	public void pause() {
@@ -103,13 +148,16 @@ public class ThreadPool implements Executor {
 	}
 	
 	private class ThreadPoolTask<T> implements Comparable<T> {	
-		private TaskPriority taskPriority;
+		private int taskPriority;
 		private Callable<T> callable;
-		private TaskFuture taskFuture = new TaskFuture();
+		/*private*/ TaskFuture taskFuture = new TaskFuture();
 		private Semaphore runTaskSem = new Semaphore(0);
+
 		
 		
-		public ThreadPoolTask(TaskPriority taskPriority, Callable<T> callable) {
+		public ThreadPoolTask(int taskPriority, Callable<T> callable) {
+			
+			
 			this.taskPriority = taskPriority;
 			this.callable = callable;
 		}
@@ -125,6 +173,9 @@ public class ThreadPool implements Executor {
 		}
 		
 		private void runTask() throws Exception {
+			taskFuture.returnObj = callable.call();
+			taskFuture.isDone = true;
+			runTaskSem.release();
 		}
 		
 		private class TaskFuture implements Future<T> {
@@ -139,13 +190,19 @@ public class ThreadPool implements Executor {
 
 			@Override
 			public T get() throws InterruptedException, ExecutionException {
-				return null;
+				runTaskSem.acquire();
+				
+				return returnObj;
 			}
 
 			@Override
-			public T get(long arg0, TimeUnit arg1) throws InterruptedException, ExecutionException, TimeoutException {
-				// TODO Auto-generated method stub
-				return null;
+			public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+				if(runTaskSem.tryAcquire(timeout,unit)) {
+					return returnObj;
+					
+				} else {
+					throw new TimeoutException();
+				}
 			}
 
 			@Override
