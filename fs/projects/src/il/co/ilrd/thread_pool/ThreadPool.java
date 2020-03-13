@@ -1,11 +1,6 @@
-// implement require non null
-// remove threadsList
-// TEST!
-
 package il.co.ilrd.thread_pool;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -18,7 +13,6 @@ import java.util.concurrent.TimeoutException;
 import il.co.ilrd.waitable_queue.WaitableQueueSem;
 
 public class ThreadPool implements Executor {	
-	private List<TPThread> threadsList = new ArrayList<>();
 	private WaitableQueueSem<ThreadPoolTask<?>> tasksQueue = new WaitableQueueSem<>();
 	private final static int DEAFULT_NUM_THREADS = Runtime.getRuntime().availableProcessors();
 	private int numOfThreads = 0;
@@ -42,9 +36,7 @@ public class ThreadPool implements Executor {
 	}
 	
 	private void AddAndStartThread() {
-		TPThread newThread = new TPThread();
-		threadsList.add(newThread);
-		newThread.start();
+		new TPThread().start();
 		++numOfThreads;
 	}
 	
@@ -74,7 +66,6 @@ public class ThreadPool implements Executor {
 					}
 					currTask.runTask();
 			}
-			while(false == threadsList.remove(this)) {}
 		}
 	}
 	
@@ -83,6 +74,7 @@ public class ThreadPool implements Executor {
 	}
 	
 	private <T> Future<T> submitTaskGeneric(Callable<T> callable, int taskPriority) {
+		Objects.requireNonNull(callable);
 		if(isShutdown) {
 			throw new ThreadPoolisShutdownException();
 		}
@@ -149,6 +141,7 @@ public class ThreadPool implements Executor {
 	}
 
 	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+		Objects.requireNonNull(unit);
 		return shutdownSem.tryAcquire(numOfThreads, timeout, unit);
 	}
 	
@@ -169,6 +162,7 @@ public class ThreadPool implements Executor {
 
 		@Override
 		public int compareTo(ThreadPoolTask<T> other) {
+			Objects.requireNonNull(other);
 			return other.taskPriority - this.taskPriority;
 		}
 		
@@ -177,7 +171,6 @@ public class ThreadPool implements Executor {
 				taskFuture.returnObj = callable.call();
 			} catch (Exception taskException) {
 				taskFuture.taskException = new ExecutionException(taskException);
-				//runTaskSem.release();
 			}
 			
 			taskFuture.isDone = true;
@@ -214,19 +207,12 @@ public class ThreadPool implements Executor {
 				}
 				
 				return returnObj;
-			
-				
-//				runTaskSem.acquire();
-//
-//				if(null != taskException) {
-//					throw taskException;
-//				}
-//				
-//				return returnObj;
 			}
 
 			@Override
 			public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+				Objects.requireNonNull(unit);
+
 				if(runTaskSem.tryAcquire(timeout,unit)) {					
 					if(null != taskException) {
 						throw taskException;
