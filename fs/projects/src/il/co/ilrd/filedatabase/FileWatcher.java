@@ -44,6 +44,7 @@ public class FileWatcher {
 
 	private	class WatcherThread extends Thread {
 		public WatcherThread(File fileName) throws IOException {
+			Objects.requireNonNull(fileName);
 			Path directory = fileName.toPath();
 			directory.register(watcher, ENTRY_CREATE, 
 										ENTRY_DELETE, 
@@ -76,9 +77,7 @@ public class FileWatcher {
 				updateAll(event);
 			}
 		}
-		if (false == eventsKey.reset()) {
-			keepWatching = false;
-		}
+		keepWatching = eventsKey.reset();
 	}
 
 	private void checkIfFileValid(File fileToWatch) throws FileNotFoundException {

@@ -12,9 +12,13 @@ public class ChangesAnalyzer {
 	private CRUDFile crudFile;
 	
 	public ChangesAnalyzer(String watchedFile, String backupFile) {
-		// TODO Auto-generated constructor stub
+		this.watchedFile = new File(watchedFile);
+		this.backupFile = new File(backupFile);
 	}
 	
+	//subscribes itself to FileWatcher (to be notified - 
+	//invoked it's compareFiles on notification)
+
 	public void register(FileWatcher<?> fileWatcher) {
 		
 	}

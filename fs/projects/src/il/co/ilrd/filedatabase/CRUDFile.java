@@ -6,7 +6,9 @@ public class CRUDFile implements CRUD<Integer, String> {
 	private File file;
 	
 	CRUDFile(String fileName) {
+		file = new File(fileName);
 	}
+	
 	@Override
 	public Integer create(String data) {
 		// TODO Auto-generated method stub
