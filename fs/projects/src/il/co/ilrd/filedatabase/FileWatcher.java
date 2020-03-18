@@ -38,10 +38,9 @@ public class FileWatcher {
 	}
 
 	private void updateAll(WatchEvent<?> event) {
-		Objects.requireNonNull(event);
 		dispatcher.updateAll(event);
 	}
-
+	
 	private	class WatcherThread extends Thread {
 		public WatcherThread(File fileName) throws IOException {
 			Objects.requireNonNull(fileName);
@@ -60,7 +59,7 @@ public class FileWatcher {
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				} catch (ClosedWatchServiceException e){
-					//cannot handle
+					//continue
 				}
 				if (null != eventsKey) {
 					checkEvents(eventsKey);					
@@ -80,7 +79,7 @@ public class FileWatcher {
 		keepWatching = eventsKey.reset();
 	}
 
-	private void checkIfFileValid(File fileToWatch) throws FileNotFoundException {
+	static void checkIfFileValid(File fileToWatch) throws FileNotFoundException {
 		Objects.requireNonNull(fileToWatch);
 		if (!fileToWatch.isFile()) {
 			throw new FileNotFoundException("fileToWatch isn't a file");
