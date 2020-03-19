@@ -4,14 +4,18 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Objects;
 
-import static il.co.ilrd.filedatabase.ChangesAnalyzer.getNumOfLines;
+import static il.co.ilrd.filedatabase.FileBackup.*;
 
 public class CRUDFile implements CRUD<Integer, String> {
 	private FileWriter filewriter;
-	private String backupFilePath;
+	private String backupFile;
 	
 	CRUDFile(String fileName) throws IOException {
-		backupFilePath = fileName;
+		backupFile = fileName;
+	}
+	
+	void setBackupFile(String backupFile) {
+		this.backupFile = backupFile;
 	}
 	
 	//Works only for adding lines
@@ -20,7 +24,7 @@ public class CRUDFile implements CRUD<Integer, String> {
 		Objects.requireNonNull(data);
 		try {
 			boolean append = true;
-			filewriter = new FileWriter(backupFilePath, append);
+			filewriter = new FileWriter(backupFile, append);
 			filewriter.write(data + "\n");
 			filewriter.close();
 		} catch (IOException e) {
@@ -28,9 +32,9 @@ public class CRUDFile implements CRUD<Integer, String> {
 		}
 		Integer numOfLines = null;
 		try {
-			numOfLines = getNumOfLines(backupFilePath);
+			numOfLines = getNumOfLines(backupFile);
 		} catch (IOException e) {
-			// cannot rethrow
+			// cannot re-throw
 		}
 		
 		return numOfLines;
