@@ -21,6 +21,7 @@ public class FileBackup {
 	}
 	
 	public void setBackupFile(String backupFile) throws Exception {
+		checkIfFileValid(new File(Objects.requireNonNull(backupFile)));
 		if(null != changesAnalyzer) {
 			throw new Exception("Cannot set backup file after invoking startFileBackup() method");
 		}
@@ -38,6 +39,7 @@ public class FileBackup {
 	
 	public void stopFileBackup() throws IOException {
 		fileWatcher.stopUpdate();
+		changesAnalyzer = null;
 	}
 	
 	static int getNumOfLines(String filePath) throws IOException {

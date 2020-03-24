@@ -7,11 +7,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 
-class RingRing<V> implements Callable<V>{
-	@Override
-	public V call() throws Exception {
-		return (V) "Ringing Eyal";
-	}
+class A <T> {
+	public void foo (Object o) {}
+	public <Z extends Integer> void foo (Z t) {}
 }
 
 
