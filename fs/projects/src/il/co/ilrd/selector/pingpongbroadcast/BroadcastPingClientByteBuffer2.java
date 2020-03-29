@@ -1,28 +1,31 @@
-package il.co.ilrd.selector.pingpongudptcp;
+package il.co.ilrd.selector.pingpongbroadcast;
+
+import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpPongServer.*;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.Scanner;
 
-import static il.co.ilrd.selector.pingpongudptcp.TcpUdpPongServer.*;
-
-public class UdpPingClientByteBuffer1 {
+public class BroadcastPingClientByteBuffer2 {
     private static DatagramChannel client;
     private static ByteBuffer buffer; 
     private static boolean toContinue = true;
 
 	public static void main(String[] args) throws IOException, InterruptedException {
 		client = DatagramChannel.open();
+        client.setOption(StandardSocketOptions.SO_BROADCAST, true);
 		client.bind(null);
 		buffer = ByteBuffer.allocate(BUFFER_SIZE);
-		new UdpPingClientByteBuffer1().new ClientInputScanner().start();
+		new BroadcastPingClientByteBuffer2().new ClientInputScanner().start();
 		
 		while(toContinue) {
-        	Thread.sleep(3000);
-			String response = sendMessage("Ping1");
+        	Thread.sleep(1500);
+			String response = sendMessage("Ping2");
 			System.out.println("Client received: " + response);
 		}
 		client.close();
@@ -31,7 +34,8 @@ public class UdpPingClientByteBuffer1 {
  
     private static String sendMessage(String msg) throws IOException {
 		buffer = ByteBuffer.wrap(msg.getBytes());
-        SocketAddress serverAddress = new InetSocketAddress(UDP_PORT);
+		InetAddress localHostAddress = InetAddress.getByName("255.255.255.255");
+        SocketAddress serverAddress = new InetSocketAddress(localHostAddress, BROADCAST_PORT);
 		client.send(buffer ,serverAddress);
 		buffer.flip();
 		buffer.clear();

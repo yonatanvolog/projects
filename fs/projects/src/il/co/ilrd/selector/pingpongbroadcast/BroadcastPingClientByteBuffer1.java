@@ -1,4 +1,6 @@
-package il.co.ilrd.selector.pingpongudptcp;
+package il.co.ilrd.selector.pingpongbroadcast;
+
+import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpPongServer.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -8,8 +10,6 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.Scanner;
-
-import static il.co.ilrd.selector.pingpongudptcp.TcpUdpPongServer.*;
 
 public class BroadcastPingClientByteBuffer1 {
     private static DatagramChannel client;
