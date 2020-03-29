@@ -1,6 +1,6 @@
 package il.co.ilrd.selector.pingpongbroadcast;
 
-import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpPongServer.*;
+import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpBroadcastPongServer.*;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -50,8 +50,9 @@ public class BroadcastPingClientByteBuffer1 {
     	public void run() {
     		System.out.println("Awaiting user input");
     		Scanner scan = new Scanner(System.in);
-    		String myLine = scan.nextLine();
+    		String myLine = null;
     		while(toContinue) {
+    			myLine = scan.nextLine();
     			if(myLine.contentEquals("exit")) {
     				toContinue = false;
     			}	

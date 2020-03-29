@@ -1,6 +1,7 @@
 package il.co.ilrd.selector.pingpongtcp;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -22,7 +23,7 @@ public class TcpPongServer {
     	
         Selector selector = Selector.open();
         ServerSocketChannel tcpServerSocket = ServerSocketChannel.open();
-        tcpServerSocket.bind(new InetSocketAddress("", TCP_PORT)); //what host?
+        tcpServerSocket.bind(new InetSocketAddress(InetAddress.getLocalHost(), TCP_PORT)); //what host?
         tcpServerSocket.configureBlocking(false);
         tcpServerSocket.register(selector, SelectionKey.OP_ACCEPT);
         ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);

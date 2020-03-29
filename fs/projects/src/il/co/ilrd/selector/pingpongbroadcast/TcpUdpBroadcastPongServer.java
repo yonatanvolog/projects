@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import java.nio.channels.DatagramChannel;
@@ -18,7 +19,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
 
-public class TcpUdpPongServer {
+public class TcpUdpBroadcastPongServer {
 	public static final int MAIN_PORT = 55000;
     public static final int TCP_PORT = MAIN_PORT;
     public static final int UDP_PORT = MAIN_PORT;
@@ -45,13 +46,13 @@ public class TcpUdpPongServer {
         serverSocketsList.add(udpServerSocket);
         serverSocketsList.add(udpBroadcastServerSocket);
         
-        new TcpUdpPongServer() .new ServerInputScanner(serverSocketsList).start();
+        new TcpUdpBroadcastPongServer() .new ServerInputScanner(serverSocketsList).start();
         ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
    
         System.out.println("Server started running");
         
         while (toContinue) {
-            selector.select();
+            while(0 == selector.select(3000)) {}
             Set<SelectionKey> selectedKeys = selector.selectedKeys();
             Iterator<SelectionKey> iter = selectedKeys.iterator();
             while (toContinue & iter.hasNext()) {
@@ -67,26 +68,26 @@ public class TcpUdpPongServer {
                 		handleTcpClient(buffer, key);
                 	} catch (IOException e) {
                 		key.cancel();
-                		System.out.println("Client closed socket (exited)");
+                		System.out.println("TCP Client closed socket (exited)");
                 	}
                 }
                 
-                if (key.isReadable()) {
+                if (key.isValid() && key.isReadable()) {
                 	if(key.isValid() && currentChannel == udpServerSocket) {
                 		try {
     						handleUdpClient(buffer, key);
             			} catch (IOException e) {
     						key.cancel();
-    						System.out.println("Client closed socket (exited)");
+    						System.out.println("UDP Client closed socket (exited)");
     					}
                 	}
                 	
                 	if(key.isValid() && currentChannel == udpBroadcastServerSocket) {
                 		try {
-            				handleUdpBroadcastClient(buffer, key);
+            				handleUdpBroadcastClient(buffer, key, udpServerSocket);
             			} catch (IOException e) {
     						key.cancel();
-    						System.out.println("Client closed socket (exited)");
+    						System.out.println("Broadcast Client closed socket (exited)");
     					} 
                 	}
                 }
@@ -110,6 +111,7 @@ public class TcpUdpPongServer {
     
     private static void configureBroadcastServerSocket(DatagramChannel serverSocket, Selector selector, int port) throws IOException {
     	serverSocket.socket().bind(new InetSocketAddress(InetAddress.getByName("255.255.255.255"),port));
+    	serverSocket.setOption(StandardSocketOptions.SO_BROADCAST, true);
     	serverSocket.configureBlocking(false);
     	serverSocket.register(selector, SelectionKey.OP_READ);
     }
@@ -121,29 +123,47 @@ public class TcpUdpPongServer {
     	        	throw new IOException();
     	        }
     	        String clientMessage = new String(buffer.array()).trim();
-    	        System.out.println("Server received: " + clientMessage);
+    	        System.out.println("Server received from TCP client: " + clientMessage);
     	        buffer.flip();
     	        
     	        String serverResponse = PingPingProtocol(clientMessage);
     	        buffer = ByteBuffer.wrap(serverResponse.getBytes());
-    	        client.write(buffer);
+    	        while(buffer.hasRemaining()) {
+    	        	client.write(buffer);
+                }
     	        buffer.clear();
     	    }
     	    
     	    private static void handleUdpClient(ByteBuffer buffer, SelectionKey key) throws IOException {
-    	    	DatagramChannel channel = (DatagramChannel) key.channel();
-    			SocketAddress clientAddress = channel.receive(buffer);
+    	    	DatagramChannel channel = (DatagramChannel) key.channel();   
+    	    	SocketAddress clientAddress = null;
+    	    	while(null == clientAddress) {
+    	    		clientAddress = channel.receive(buffer);
+    	    	}
     			String clientMessage = new String(buffer.array()).trim();
-    			System.out.println("Server received: " + clientMessage);
+    			System.out.println("Server received from UDP client: " + clientMessage);
     			String serverResponse = PingPingProtocol(clientMessage);
     			buffer.flip();
     			buffer = ByteBuffer.wrap(serverResponse.getBytes());
     			channel.send(buffer, clientAddress);
+
     			buffer.clear();
     	    }
     	    
-    	    private static void handleUdpBroadcastClient(ByteBuffer buffer, SelectionKey key) throws IOException {
-    	       handleUdpClient( buffer,  key);
+    	    private static void handleUdpBroadcastClient(ByteBuffer buffer, SelectionKey key, DatagramChannel udpServerSocket) throws IOException {
+    	    	DatagramChannel channel = (DatagramChannel) key.channel();
+      	    	SocketAddress clientAddress = null;
+    	    	while(null == clientAddress) {
+    	    		clientAddress = channel.receive(buffer);
+    	    	}
+    	    	String clientMessage = new String(buffer.array()).trim();
+    			System.out.println("Server received from Broadcast client: " + clientMessage);
+    			String serverResponse = PingPingProtocol(clientMessage);
+    			buffer.flip();
+    			buffer = ByteBuffer.wrap(serverResponse.getBytes());
+    			udpServerSocket.send(buffer, clientAddress);
+
+    			buffer.clear();
     	    }
     	    
     	    private static SocketChannel register(Selector selector, ServerSocketChannel serverSocket)

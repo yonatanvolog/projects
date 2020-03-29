@@ -1,8 +1,9 @@
 package il.co.ilrd.selector.pingpongbroadcast;
 
-import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpPongServer.*;
+import static il.co.ilrd.selector.pingpongbroadcast.TcpUdpBroadcastPongServer.*;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -31,7 +32,7 @@ public class UdpPingClientByteBuffer2 {
  
     private static String sendMessage(String msg) throws IOException {
 		buffer = ByteBuffer.wrap(msg.getBytes());
-        SocketAddress serverAddress = new InetSocketAddress(UDP_PORT);
+        SocketAddress serverAddress = new InetSocketAddress(InetAddress.getLocalHost(),UDP_PORT);
 		client.send(buffer ,serverAddress);
 		buffer.flip();
 		buffer.clear();
@@ -46,8 +47,9 @@ public class UdpPingClientByteBuffer2 {
     	public void run() {
     		System.out.println("Awaiting user input");
     		Scanner scan = new Scanner(System.in);
-    		String myLine = scan.nextLine();
+    		String myLine = null;
     		while(toContinue) {
+    			myLine = scan.nextLine();
     			if(myLine.contentEquals("exit")) {
     				toContinue = false;
     			}	

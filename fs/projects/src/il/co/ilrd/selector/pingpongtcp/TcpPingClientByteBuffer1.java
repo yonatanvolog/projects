@@ -1,6 +1,7 @@
 package il.co.ilrd.selector.pingpongtcp;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -14,7 +15,7 @@ public class TcpPingClientByteBuffer1 {
     private static boolean toContinue = true;
 
 	public static void main(String[] args) throws IOException, InterruptedException {
-		client = SocketChannel.open(new InetSocketAddress("", TCP_PORT));
+		client = SocketChannel.open(new InetSocketAddress(InetAddress.getLocalHost(), TCP_PORT));
 		buffer = ByteBuffer.allocate(BUFFER_SIZE);
 		
 		new TcpPingClientByteBuffer1().new ClientInputScanner().start();
@@ -45,8 +46,9 @@ public class TcpPingClientByteBuffer1 {
     	public void run() {
     		System.out.println("Awaiting user input");
     		Scanner scan = new Scanner(System.in);
-    		String myLine = scan.nextLine();
+    		String myLine = null;
     		while(toContinue) {
+    			myLine = scan.nextLine();
     			if(myLine.contentEquals("exit")) {
     				toContinue = false;
     			}	
