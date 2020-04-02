@@ -1,12 +1,9 @@
 package il.co.ilrd.pingpong.handlers;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import java.nio.channels.DatagramChannel;
@@ -21,147 +18,170 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.print.DocFlavor.BYTE_ARRAY;
-
 public class Server {
-	public static final int MAIN_PORT = 50000;
-    public static final int TCP_PORT = MAIN_PORT;
-    public static final int UDP_PORT = MAIN_PORT;
-    public static final int BROADCAST_PORT = MAIN_PORT;
     public static final int BUFFER_SIZE = 1024;
-	
-    //ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
 
-    
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;
-	
+
 	public Server() throws IOException {
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
 	}
 	
 	public void startServer() throws IOException, ClassNotFoundException {
-		connectionHandler.startConnections();
+		new Thread(connectionHandler).start();
 	}
 
-	public void stopServer() {
+	public void stopServer() throws IOException {
 		connectionHandler.stopConnections();
 		//connectionHandler.removeConnection()?
 	}
 
-	public void addBroadcastConnection(int portNumber) throws IOException {
-		BroadcastConnection broadcastConnection = new BroadcastConnection(connectionHandler.selector, BROADCAST_PORT);
-		connectionHandler.addConnection(broadcastConnection);
-	}
-
 	public void addTcpConnection(int portNumber) throws IOException {
-		TcpConnection tcpConnection = new TcpConnection(connectionHandler.selector, TCP_PORT);	
-		connectionHandler.addConnection(tcpConnection);
+		if(connectionCanBeCreated(portNumber, connectionHandler.broadcastServersList)) {
+			connectionHandler.addConnection
+				(new TcpConnection(portNumber), connectionHandler.tcpServersList);
+		}
+	}
+	
+	public void addUdpConnection(int portNumber) throws IOException {
+		if(connectionCanBeCreated(portNumber, connectionHandler.broadcastServersList)) {
+			connectionHandler.addConnection
+				(new UdpConnection(portNumber), connectionHandler.udpServersList);
+		}
+	}
+	
+	public void addBroadcastConnection(int portNumber) throws IOException {
+		if(connectionCanBeCreated(portNumber, connectionHandler.broadcastServersList)) {
+			connectionHandler.addConnection
+				(new BroadcastConnection(portNumber), connectionHandler.broadcastServersList);
+		}
+	}
+	
+	private boolean connectionCanBeCreated(int portNumber, List<Connection> specificServerList) {
+		boolean answer = true;
+		for (Connection connection : specificServerList) {
+			if(portNumber == connection.getPort()) {
+				answer = false;
+			}
+		}
+		return answer;
 	}
 
-	public void addUdpConnection(int portNumber) throws IOException {
-		UdpConnection udpConnection = new UdpConnection(connectionHandler.selector, UDP_PORT);
-		connectionHandler.addConnection(udpConnection);
-	}	
-	
 	/**********************************************
 	 * Connection Handler
 	 **********************************************/
-	private class ConnectionHandler {
-		private List<Connection> serverConnetionsList; //why do we need a list of connections if we already registered to the selector?
+	private class ConnectionHandler implements Runnable{
     	private Selector selector;
-		boolean toContinue;
-		private Map<Channel, Connection> serverConnectionsMap = new HashMap<>();
-		
-		
+		private boolean toContinue;
+		private Map<Channel, Connection> connectionsMap = new HashMap<>();
+		private List<Connection> tcpServersList;
+		private List<Connection> udpServersList;
+		private List<Connection> broadcastServersList;
+
 		public ConnectionHandler() throws IOException {
-			serverConnetionsList = new ArrayList<>();
+			tcpServersList = new ArrayList<>();
+			udpServersList = new ArrayList<>();
+			broadcastServersList = new ArrayList<>();
+
 			selector = Selector.open();
-			toContinue = true;
 		}
 		
-		private void startConnections() throws IOException, ClassNotFoundException {
-	        List<Closeable> clientSocketsList = new ArrayList<>();
-			
-	        
-	        for (Connection serverConnection : serverConnetionsList) {
-	        	serverConnection.configureServerSocket(selector);
-	        	serverConnectionsMap.put(serverConnection.getChannel(), serverConnection);
+		@Override
+		public void run() {
+			toContinue = true;
+			try {
+				configureExistingServerSockets();
+		        System.out.println("Server started running");   
+				while (toContinue) {     
+					if(0 == selector.select(3000)) {
+						System.out.println("Channels are not ready");
+						continue;
+					};	
+					Set<SelectionKey> selectedKeys = selector.selectedKeys();
+		            Iterator<SelectionKey> iter = selectedKeys.iterator();
+		            
+		            while (toContinue & iter.hasNext()) {		            	
+		                SelectionKey key = iter.next();
+		                Channel currentChannel = key.channel();
+		 
+		                if(key.isValid() && key.isAcceptable()) {
+		                	ServerSocketChannel tcpServer = (ServerSocketChannel) connectionsMap.get(currentChannel).getChannel();
+		                	SocketChannel tcpClient = tcpServer.accept();
+		                	
+		                	tcpClient.configureBlocking(false);
+		                	tcpClient.register(selector, SelectionKey.OP_READ);
+		                	connectionsMap.put(tcpClient, connectionsMap.get(currentChannel));        	
+		                }
+		                
+		                if(key.isValid() && key.isReadable()) {	
+	                		Connection currentConnection = connectionsMap.get(currentChannel);
+	                		currentConnection.receiveMessage(currentChannel);
+	                	}
+	
+		                iter.remove();
+		            }
+		        }
+			} catch (Exception e) {
+				if(toContinue) {
+					throw new RuntimeException(e);
+				}
 			}
-	        
-	        
-			while (toContinue) {
-	            while(0 == selector.select(3000)) {}
-	            Set<SelectionKey> selectedKeys = selector.selectedKeys();
-	            Iterator<SelectionKey> iter = selectedKeys.iterator();
-	            while (toContinue & iter.hasNext()) {
-	                SelectionKey key = iter.next();
-	                Channel currentChannel = key.channel();
-	 
-              
-	                
-	                if(key.isValid() && key.isReadable()) {	//UDP server connection
-	                    //ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-	                	
-                		Connection currentConnection = serverConnectionsMap.get(currentChannel);
-                		                		
-                		
-                		ByteBuffer buffer = currentConnection.receiveMessage();
-                		messageHandler.handleMessage(buffer, currentConnection);
-                	}
-	                
-//	                if (key.isValid() && key.isAcceptable() && currentChannel == tcpServerSocket) {
-//	                    clientSocketsList.add(register(selector, tcpServerSocket));
-//	                }
-//	                
-//	                if (key.isValid() && clientSocketsList.contains(currentChannel)) {
-//	                	try {
-//	                		handleTcpClient(buffer, key);
-//	                	} catch (IOException e) {
-//	                		key.cancel();
-//	                		System.out.println("TCP Client closed socket (exited)");
-//	                	}
-//	                }
-//	                
-//	                if (key.isValid() && key.isReadable()) {
-//	                	if(key.isValid() && currentChannel == udpServerSocket) {
-//	                		try {
-//	    						handleUdpClient(buffer, key);
-//	            			} catch (IOException e) {
-//	    						key.cancel();
-//	    						System.out.println("UDP Client closed socket (exited)");
-//	    					}
-//	                	}
-//	                	
-//	                	if(key.isValid() && currentChannel == udpBroadcastServerSocket) {
-//	                		try {
-//	            				handleUdpBroadcastClient(buffer, key, udpServerSocket);
-//	            			} catch (IOException e) {
-//	    						key.cancel();
-//	    						System.out.println("Broadcast Client closed socket (exited)");
-//	    					} 
-//	                	}
-//	                }
-	                iter.remove();
-	            }
-	        }
 			System.out.println("Server terminated");
 		}
 
-		private void stopConnections() {
-//			toContinue = false;
-//			for (Closeable serverSocketIter : serverConnetionsList) {
-//				serverSocketIter.close();
-//			}
+		private void stopConnections() throws IOException {
+			System.out.println("Closing server");
+			toContinue = false;
+			for(SelectionKey keyIter :selector.keys()) {
+				keyIter.channel().close();
+			}
+			selector.close();
 		}
 
-		private void addConnection(Connection connection) {
-			serverConnetionsList.add(connection);
+		private void addConnection(Connection connection, List<Connection> specificServerList) {
+			specificServerList.add(connection);
 		}
 
-		private void removeConnection(Connection connection) {
-			serverConnetionsList.remove(connection);
+		private void removeConnection(Connection connection , List<Connection> specificServerList) {
+			specificServerList.remove(connection);
+		}
+		
+		private void configureExistingServerSockets() throws IOException {
+	        for (Connection serverConnection : tcpServersList) {
+	        	serverConnection.configureServerSocket(selector);
+	        	connectionsMap.put(serverConnection.getChannel(), serverConnection);
+			}
+	        
+	        for (Connection serverConnection : udpServersList) {
+	        	serverConnection.configureServerSocket(selector);
+	        	connectionsMap.put(serverConnection.getChannel(), serverConnection);
+			}
+	        
+	        for (Connection serverConnection : broadcastServersList) {
+	        	serverConnection.configureServerSocket(selector);
+	        	connectionsMap.put(serverConnection.getChannel(), serverConnection);
+			}
+		}
+	}
+	
+	/**********************************************
+	 * Client info
+	 **********************************************/
+	private class ClientInfo {
+		private SocketChannel tcpPath;
+		private SocketAddress udpPath;
+		private Connection connection;
+		
+		public ClientInfo(SocketAddress udpPath, Connection connection) {
+			this.udpPath = udpPath;
+			this.connection = connection;
+		}
+		
+		public ClientInfo(SocketChannel tcpPath, Connection connection) {
+			this.tcpPath = tcpPath;
+			this.connection = connection;
 		}
 	}
 	
@@ -169,21 +189,12 @@ public class Server {
 	 * Connection Interface
 	 **********************************************/
 
-	private interface Connection { //implements closeable 
-		//public void sendMessage(SocketAddress clientAddress, ByteBuffer message) throws IOException; //clientAddress or clientChannel?
-		
-		void sendMessage(ByteBuffer message) throws IOException;
-
-		ByteBuffer receiveMessage() throws IOException;
-
-		//public void communicateWithClient() throws IOException;
-
+	private interface Connection {
+		public void sendMessage(ClientInfo client,ByteBuffer message) throws IOException;
+		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException;
 		public Channel getChannel();
+		public int getPort();
 		public void configureServerSocket(Selector selector) throws IOException;
-		// it shouldn't be object, but couldn't think of something better
-		// message can be buffer or string
-		
-	//	public void initAndRegisterServer()
 	}
 
 	/**********************************************
@@ -193,13 +204,11 @@ public class Server {
 		private int port; 
 		private ServerSocketChannel serverSocket;
 		
-		public TcpConnection(Selector selector, int port) throws IOException {
+		public TcpConnection(int port) throws IOException {
 			serverSocket = ServerSocketChannel.open();
 			this.port = port;
 		}
-		
 
-		
 		@Override
 		public void configureServerSocket(Selector selector) throws IOException {
 	    	serverSocket.bind(new InetSocketAddress(InetAddress.getLocalHost(), port));
@@ -211,20 +220,36 @@ public class Server {
 		public Channel getChannel() {
 			return serverSocket;
 		}
+		
+		@Override
+		public int getPort() {
+			return port;
+		}
 
 		@Override
-		public void sendMessage(ByteBuffer message) throws IOException {
-			// TODO Auto-generated method stub
+		public void sendMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {			
+			while(message.hasRemaining()) {
+				clientInfo.tcpPath.write(message);
+			}
+		}
+
+		@Override
+		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
+	        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
 			
+			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
+	        	throw new IOException();
+	        }
+			
+			try {
+				System.out.println("Server received from TCP client: " + ((ServerMessage<ProtocolIndex, PingPongMessage>)BytesUtil.toObject(buffer.array())).getData().getKey());
+			} catch (Exception e) {
+				System.err.println("Failed to print what server recieved");
+			}
+			
+			ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
+    		messageHandler.handleMessage(buffer, clientInfo);
 		}
-
-		@Override
-		public ByteBuffer receiveMessage() throws IOException {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
-
 	}
 
 	/**********************************************
@@ -232,97 +257,68 @@ public class Server {
 	 **********************************************/
 	private class UdpConnection implements Connection {
 		private int port; 
-		private DatagramChannel serverSocket;
-		private SocketAddress clientAddress;
+		private DatagramChannel serverSocket;		
 		
-		
-		public UdpConnection(Selector selector, int port) throws IOException {
+		public UdpConnection(int port) throws IOException {
 			serverSocket = DatagramChannel.open();
-			this.port = port;		
+			this.port = port;
 		}
+
 		@Override
-		public void sendMessage(ByteBuffer message) throws IOException {
-			serverSocket.send(message, clientAddress);
+		public void sendMessage(ClientInfo client, ByteBuffer message) throws IOException {
+			serverSocket.send(message, client.udpPath);
 		}
 		
 		@Override
-		public ByteBuffer receiveMessage() throws IOException {
-	        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-	    	while(null == this.clientAddress) {
-	    		this.clientAddress = serverSocket.receive(buffer);
+		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException {    
+			SocketAddress clientAddress = null;
+			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+	    	while(null == clientAddress) {
+	    		clientAddress = serverSocket.receive(buffer);
 	    	}
-	    	
+
 			try {
-				System.out.println("Server received from UDP client: " + ((Message<Integer, Message<String, Void>>)BytesUtil.toObject(buffer.array())).getData().getKey());
+				System.out.println("Server received from UDP client: " + ((ServerMessage<ProtocolIndex, PingPongMessage>)BytesUtil.toObject(buffer.array())).getData().getKey());
 			} catch (Exception e) {
-				System.err.println("Filed to print what server recieved");
-			}
-	    			
-			return buffer;
+				System.err.println("Failed to print what server recieved");
+			}	
+			
+			ClientInfo clientInfo = new ClientInfo((SocketAddress)clientAddress, this);
+    		messageHandler.handleMessage(buffer, clientInfo);
 		}
 		
 		@Override
 		public void configureServerSocket(Selector selector) throws IOException {
-	    	serverSocket.socket().bind(new InetSocketAddress(InetAddress.getLocalHost(),port));
+	    	serverSocket.socket().bind(new InetSocketAddress(port));
 	    	serverSocket.configureBlocking(false);
 	    	serverSocket.register(selector, SelectionKey.OP_READ);
 	    }
 		
-
 		@Override
 		public Channel getChannel() {
 			return serverSocket;
+		}
+
+		@Override
+		public int getPort() {
+			return port;
 		}
 	}
 
 	/**********************************************
 	 * Broadcast Connection
 	 **********************************************/
-	private class BroadcastConnection implements Connection {
-		private int port; 
-		private DatagramChannel serverSocket;
-		
-		public BroadcastConnection(Selector selector, int port) throws IOException {
-			serverSocket = DatagramChannel.open();
-			this.port = port;
+	private class BroadcastConnection extends UdpConnection {
+		public BroadcastConnection(int port) throws IOException {
+			super(port);
 		}
-		
-		
-		@Override
-		public void configureServerSocket(Selector selector) throws IOException {
-	    	serverSocket.socket().bind(new InetSocketAddress(InetAddress.getByName("255.255.255.255"),port));
-	    	serverSocket.setOption(StandardSocketOptions.SO_BROADCAST, true);
-	    	serverSocket.configureBlocking(false);
-	    	serverSocket.register(selector, SelectionKey.OP_READ);
-	    }
-
-		@Override
-		public Channel getChannel() {
-			return serverSocket;
-		}
-
-		@Override
-		public void sendMessage(ByteBuffer message) throws IOException {
-			// TODO Auto-generated method stub
-			
-		}
-
-		@Override
-		public ByteBuffer receiveMessage() throws IOException {
-			// TODO Auto-generated method stub
-			return null;
-		}
-
 	}
 
 	/**********************************************
 	 * Protocol
 	 **********************************************/
 	private interface Protocol<K, V> { 
-
-		public void handleMessage(Connection serverSocket, Message<K, V> message) throws IOException;
-
-
+		public void handleMessage(ClientInfo serverSocket, Message<K, V> message) throws IOException;
 	}
 
 	/**********************************************
@@ -330,24 +326,30 @@ public class Server {
 	 **********************************************/
 
 	private class PingPongProtocol<K, V> implements Protocol<K, V> {
-		
 		@Override
-		public void handleMessage(Connection serverSocket, Message<K, V> message) throws IOException {
-			
+		public void handleMessage(ClientInfo clientInfo, Message<K, V> message) throws IOException {
 			String clientMessage = (String) message.getKey();
 			String serverResponse = getResponseAccordingToMessage(clientMessage);
 			byte[] response = BytesUtil.toByteArray(serverResponse);  
-		    serverSocket.sendMessage(ByteBuffer.wrap(response));
+			clientInfo.connection.sendMessage(clientInfo, ByteBuffer.wrap(response)); //?
 		}
 		
 		private String getResponseAccordingToMessage(String clientMessage) {
+			final String CLIENT_INPUT_VER1_1 = "Pong1";
+			final String CLIENT_INPUT_VER1_2 = "Pong2";
+			final String CLIENT_INPUT_VER2_1 = "Ping1";
+			final String CLIENT_INPUT_VER2_2 = "Ping2";
+			final String SERVER_OUTPUT_VER1 = "Ping";
+			final String SERVER_OUTPUT_VER2 = "Pong";
+			final String SERVER_OUTPUT_BAD = "Wrong";
+
 			String serverResponse;
-		    if(clientMessage.equals("Pong1") | clientMessage.equals("Pong2")) {
-		    	serverResponse = "Ping";
-		    } else if (clientMessage.equals("Ping1") | clientMessage.equals("Ping2")) {
-		    	serverResponse = "Pong";
+		    if(clientMessage.equals(CLIENT_INPUT_VER1_1) | clientMessage.equals(CLIENT_INPUT_VER1_2)) {
+		    	serverResponse = SERVER_OUTPUT_VER1;
+		    } else if (clientMessage.equals(CLIENT_INPUT_VER2_1) | clientMessage.equals(CLIENT_INPUT_VER2_2)) {
+		    	serverResponse = SERVER_OUTPUT_VER2;
 		    } else {
-		    	serverResponse = "Wrong";
+		    	serverResponse = SERVER_OUTPUT_BAD;
 		    }
 		    
 		    return serverResponse;
@@ -358,25 +360,24 @@ public class Server {
 	 * Message Handler
 	 **********************************************/
 	private class MessageHandler {
-
-		PingPongProtocol<String, Void> ppProtocol = new PingPongProtocol<String, Void>(); //dummy 
-		private List<Protocol> protocolsList;
+		private Map<ProtocolIndex, Protocol> protocolMap = new HashMap<>();
 		
-		private void handleMessage(ByteBuffer message, Connection currentConnection) throws ClassNotFoundException, IOException {
-
-			Message<Integer, Message<String, Void>> clientMessage = (Message<Integer, Message<String, Void>>) BytesUtil.toObject(message.array());
-			//ppProtocol = protocolsList.get(clientMessage.getKey()); - get the protocol user specified he works with
-			ppProtocol.handleMessage(currentConnection, clientMessage.getData());
+		public MessageHandler() {
+			addProtocol(ProtocolIndex.PingPong, new PingPongProtocol<String, Void>());
 		}
 
-		private void addProtocol(Protocol protocol) {
-			protocolsList.add(protocol);
-			protocolsList.add(new PingPongProtocol<String, Void>());
+		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {
+			ServerMessage<ProtocolIndex, PingPongMessage> clientMessage = (ServerMessage<ProtocolIndex, PingPongMessage>) BytesUtil.toObject(message.array());
+			ProtocolIndex index = clientMessage.getKey();
+			protocolMap.get(index).handleMessage(currentConnection, clientMessage.getData());
+		}
 
+		private void addProtocol(ProtocolIndex index, Protocol protocol) {
+			protocolMap.put(index, protocol);
 		}
 
 		private void removeProtocol(Protocol protocol) {
-			protocolsList.remove(protocol);
+			protocolMap.remove(protocol);
 		}
 	}
 }

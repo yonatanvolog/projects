@@ -2,45 +2,24 @@ package il.co.ilrd.pingpong.handlers;
 
 import java.io.Serializable;
 
-public class PingPongMessage implements Message<Integer, Message<String, Void>> , Serializable {
+//is the inner message
+
+public class PingPongMessage implements Message<String, Void> , Serializable {
 	
 	private static final long serialVersionUID = 1L;
-	private Integer key;
-	private Message<String, Void> data;
-	
-	public PingPongMessage(Integer key, String messageKey) {
-		this.key = key;
-		data = new InnerMessage(messageKey);
-	}
-	
-	@Override
-	public Integer getKey() {
-		return key;
+	private String messageKey;
+
+	public PingPongMessage(String messageKey) {
+		this.messageKey = messageKey;
 	}
 
 	@Override
-	public Message<String, Void> getData() {
-		return data;
+	public String getKey() {
+		return messageKey;
 	}
-	
-	private class InnerMessage implements Message<String, Void>  , Serializable {
-		
-		private static final long serialVersionUID = 1L;
-		private String key;
-		private Void data;
-		
-		public InnerMessage(String key) {
-			this.key = key;
-		}
-		
-		@Override
-		public String getKey() {
-			return key;
-		}
 
-		@Override
-		public Void getData() {
-			return data;
-		}	
+	@Override
+	public Void getData() {
+		return null;
 	}
 }
