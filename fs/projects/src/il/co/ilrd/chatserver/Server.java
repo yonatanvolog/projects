@@ -355,6 +355,18 @@ public class Server {
 	/**********************************************
 	 * Chat Server Protocol
 	 **********************************************/
+	class ChatClientInfo {
+		private String name;
+
+		public ChatClientInfo(String name) {
+			this.name = name;
+		}
+		
+		public String getName() {
+			return name;
+		}
+	}
+	
 	private interface ChatProtocolKeysHandler {
 		public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo);
 	}
@@ -376,12 +388,14 @@ public class Server {
 		class RegistrationReqHandler implements ChatProtocolKeysHandler {
 			@Override
 			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				if(registeredClients.containsValue(clientMessage.getData())) {
+				if(true == checkIfNameIsTaken(clientMessage.getData())) {
 					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with such name already exists");
 				}
-				else if(registeredClients.containsKey(clientInfo.tcpPath)) {
+				
+				if(true == checkIfSocketIsTaken(clientInfo.tcpPath)) {
 					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with this socket already exists");
 				}
+				
 				try {
 					sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.NEW_CLIENT_REGISTRATION, "New client registered: " + clientMessage.getData()));
 				} catch (IOException e) {
@@ -403,28 +417,35 @@ public class Server {
 		
 		class RemoveReqHandler implements ChatProtocolKeysHandler {
 			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				registeredClients.remove(clientInfo.tcpPath);
-				try {
-					sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
-				} catch (IOException e) {
-					System.err.println("Couldn't send all clients the message");
+			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {			
+				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
+			
+				if(null == errorToClient) {
+					registeredClients.remove(clientInfo.tcpPath);
+					try {
+						sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
+					} catch (IOException e) {
+						System.err.println("Couldn't send all clients the message");
+					}
 				}
 				
-				return null;
+				return errorToClient;
 			}
 		}
 		
 		class ClientMessageHandler implements ChatProtocolKeysHandler {
 			@Override
 			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				try {
-					sendAllChatClientsExcept(new ChatServerMessage(ChatProtocolKeys.MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
-				} catch (IOException e) {
-					System.err.println("Couldn't send all clients the message");
-				}
+				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
 
-				return null;
+				if(null == errorToClient) {				
+					try {
+						sendAllChatClientsExcept(new ChatServerMessage(ChatProtocolKeys.BROADCAST_MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
+					} catch (IOException e) {
+						System.err.println("Couldn't send all clients the message");
+					}
+				}
+				return errorToClient;
 			}
 		}
 	
@@ -440,7 +461,7 @@ public class Server {
 				clientInfo.tcpPath.write(buffer);
 			}
 		}
-		
+	
 		private void sendAllChatClients(ChatServerMessage message) throws IOException {
 			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
 			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
@@ -460,13 +481,28 @@ public class Server {
 				}
 			}
 		}
-
-		class ChatClientInfo {
-			String name;
-
-			public ChatClientInfo(String name) {
-				this.name = name;
+		
+		private boolean checkIfNameIsTaken(String name) {
+			for (ChatClientInfo clientInfo : registeredClients.values()) {
+				if(clientInfo.getName().equals(name)) {
+					return true;
+				}
 			}
+			return false;
+		}
+		
+		private boolean checkIfSocketIsTaken(SocketChannel clientSocket) {
+			if(null != registeredClients.get(clientSocket)) {
+				return true;
+			}
+			return false;
+		}
+		
+		private ChatServerMessage checkIfNoSuchClient(ClientInfo clientInfo) {
+			if(null == registeredClients.get(clientInfo.tcpPath)) {
+				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "You aren't registered");
+			}
+			return null;
 		}
 	}
 
