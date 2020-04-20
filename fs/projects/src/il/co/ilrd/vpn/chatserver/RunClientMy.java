@@ -1,4 +1,4 @@
-package il.co.ilrd.chatserver;
+package il.co.ilrd.vpn.chatserver;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -9,24 +9,25 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
-public class RunChatClientVPN {
+public class RunClientMy {
 	private ByteBuffer buffer = ByteBuffer.allocate(2048); 
-	private ServerMessage message;
+	private GlobalServerMessage message;
 	private SocketChannel socket;
 	private boolean toContinue = true;
 	private boolean keepListening = true;
-	private static final int PORT_NUM = ProtocolPort.CHAT_PROTOCOL_PORT.getPort();
+	private static final int PORT_NUM = GlobalProtocolPort.CHAT_PROTOCOL_PORT.getPort();
+	private static final String host = "172.20.20.5";
+
 	
 	public static void main(String[] args) throws UnknownHostException, ClassNotFoundException, IOException {
-		RunChatClientVPN user = new RunChatClientVPN();
+		RunClientMy user = new RunClientMy();
 		user.runCheckInputThread();
 	}
 	
 	private void registerToChat(String userName) throws UnknownHostException, IOException, ClassNotFoundException {
-		socket = SocketChannel.open(new InetSocketAddress(InetAddress.getByName("172.20.20.9"), PORT_NUM));
-
-		message = new ServerMessage(ProtocolType.CHAT_SERVER, 
-				new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REQUEST, userName));
+		socket = SocketChannel.open(new InetSocketAddress(InetAddress.getByName(host), PORT_NUM));
+		message = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, 
+				new GlobalChatServerMessage(GlobalChatProtocolKeys.REGISTRATION_REQUEST, userName));
 		buffer.put(BytesUtil.toByteArray(message));
 		keepListening = true;
 		runPrintMessages();
@@ -37,8 +38,8 @@ public class RunChatClientVPN {
 	
 	private void removerFromChat(String userName) throws UnknownHostException, IOException, ClassNotFoundException {
 		keepListening = false;
-		message = new ServerMessage(ProtocolType.CHAT_SERVER, 
-				new ChatServerMessage(ChatProtocolKeys.REMOVE_REQUEST, userName));
+		message = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, 
+				new GlobalChatServerMessage(GlobalChatProtocolKeys.REMOVE_REQUEST, userName));
 		buffer.put(BytesUtil.toByteArray(message));
 		buffer.clear();
 		socket.write(buffer);
@@ -46,8 +47,8 @@ public class RunChatClientVPN {
 	}
 	
 	private void sendMessage(String messageString) throws UnknownHostException, IOException, ClassNotFoundException {
-		message = new ServerMessage(ProtocolType.CHAT_SERVER, 
-				new ChatServerMessage(ChatProtocolKeys.MESSAGE, messageString));
+		message = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, 
+				new GlobalChatServerMessage(GlobalChatProtocolKeys.MESSAGE, messageString));
 		buffer.put(BytesUtil.toByteArray(message));
 		buffer.clear();
 		socket.write(buffer);
@@ -102,8 +103,8 @@ public class RunChatClientVPN {
 				try {
 					while(keepListening) {
 						socket.read(buffer);
-						ServerMessage retMessage = (ServerMessage) BytesUtil.toObject(buffer.array());
-						System.out.println(retMessage.getData().toString());
+						GlobalServerMessage retMessage = (GlobalServerMessage) BytesUtil.toObject(buffer.array());
+						System.out.println(retMessage.getData().getData());
 						buffer.clear();			
 					}									
 				} catch (Exception e) {

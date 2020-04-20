@@ -1,4 +1,4 @@
-package il.co.ilrd.chatserver;
+package il.co.ilrd.vpn.chatserver;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -18,13 +18,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class Server {
+public class GlobalServer {
     public static final int BUFFER_SIZE = 2048;
 
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;
 
-	public Server() throws IOException {
+	public GlobalServer() throws IOException {
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
 	}
@@ -107,6 +107,8 @@ public class Server {
 		                Channel currentChannel = key.channel();
 		 
 		                if(key.isValid() && key.isAcceptable()) {
+		                	System.err.println("in acceptable");
+		                	
 		                	ServerSocketChannel tcpServer = (ServerSocketChannel) connectionsMap.get(currentChannel).getChannel();
 		                	SocketChannel tcpClient = tcpServer.accept();
 		                	
@@ -115,7 +117,10 @@ public class Server {
 		                	connectionsMap.put(tcpClient, connectionsMap.get(currentChannel));        	
 		                }
 		                
-		                if(key.isValid() && key.isReadable()) {	
+		                if(key.isValid() && key.isReadable()) {
+		                	System.err.println("in readable");
+
+		                	
 	                		Connection currentConnection = connectionsMap.get(currentChannel);
 	                		currentConnection.receiveMessage(currentChannel);
 	                	}
@@ -219,7 +224,7 @@ public class Server {
 		@Override
 		public void configureServerSocket(Selector selector) throws IOException {
 			serverSocket.bind(new InetSocketAddress(port));
-			serverSocket.configureBlocking(false);
+	    	serverSocket.configureBlocking(false);
 	    	serverSocket.register(selector, SelectionKey.OP_ACCEPT);
 	    }
 
@@ -313,7 +318,7 @@ public class Server {
 	 * Protocol
 	 **********************************************/
 	private interface Protocol<K, V> { 
-		public void handleMessage(ClientInfo serverSocket, Message<K, V> message) throws IOException;
+		public void handleMessage(ClientInfo serverSocket, GlobalMessage<K, V> message) throws IOException;
 	}
 
 	/**********************************************
@@ -322,7 +327,7 @@ public class Server {
 
 	private class PingPongProtocol<K, V> implements Protocol<K, V> {
 		@Override
-		public void handleMessage(ClientInfo clientInfo, Message<K, V> message) throws IOException {
+		public void handleMessage(ClientInfo clientInfo, GlobalMessage<K, V> message) throws IOException {
 			String clientMessage = (String) message.getKey();
 			System.out.println("PingPongServer recieved: " + clientMessage + " ,from client: " + clientInfo.toString());
 			String serverResponse = getResponseAccordingToMessage(clientMessage);
@@ -368,62 +373,62 @@ public class Server {
 	}
 	
 	private interface ChatProtocolKeysHandler {
-		public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo);
+		public GlobalChatServerMessage apply(GlobalChatServerMessage clientMessage, ClientInfo clientInfo);
 	}
 	
-	private class ChatProtocol<K, V> implements Protocol<K, V> {			
+	private class GlobalChatProtocol<K, V> implements Protocol<K, V> {			
 		private Map<SocketChannel, ChatClientInfo> registeredClients = new HashMap<>();	
-		private Map<ChatProtocolKeys, ChatProtocolKeysHandler> chatMethodsMap = new HashMap<>();
+		private Map<GlobalChatProtocolKeys, ChatProtocolKeysHandler> chatMethodsMap = new HashMap<>();
 		
-		public ChatProtocol() {
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REQUEST, new RegistrationReqHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_ACK, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REFUSE, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.MESSAGE, new ClientMessageHandler());
-			chatMethodsMap.put(ChatProtocolKeys.BROADCAST_MESSAGE, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REMOVE_REQUEST, new RemoveReqHandler());
-			chatMethodsMap.put(ChatProtocolKeys.ERROR_MESSAGE, new WrongKeyHandler());
+		public GlobalChatProtocol() {
+			chatMethodsMap.put(GlobalChatProtocolKeys.REGISTRATION_REQUEST, new RegistrationReqHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.REGISTRATION_ACK, new WrongKeyHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.REGISTRATION_REFUSE, new WrongKeyHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.MESSAGE, new ClientMessageHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.BROADCAST_MESSAGE, new WrongKeyHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.REMOVE_REQUEST, new RemoveReqHandler());
+			chatMethodsMap.put(GlobalChatProtocolKeys.ERROR_MESSAGE, new WrongKeyHandler());
 		}
 		
 		class RegistrationReqHandler implements ChatProtocolKeysHandler {
 			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
+			public GlobalChatServerMessage apply(GlobalChatServerMessage clientMessage, ClientInfo clientInfo) {
 				if(true == checkIfNameIsTaken(clientMessage.getData())) {
-					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with such name already exists");
+					return new GlobalChatServerMessage(GlobalChatProtocolKeys.REGISTRATION_REFUSE, "Client with such name already exists");
 				}
 				
 				if(true == checkIfSocketIsTaken(clientInfo.tcpPath)) {
-					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with this socket already exists");
+					return new GlobalChatServerMessage(GlobalChatProtocolKeys.REGISTRATION_REFUSE, "Client with this socket already exists");
 				}
 				
 				try {
-					sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.NEW_CLIENT_REGISTRATION, "New client registered: " + clientMessage.getData()));
+					sendAllChatClients(new GlobalChatServerMessage(GlobalChatProtocolKeys.NEW_CLIENT_REGISTRATION, "New client registered: " + clientMessage.getData()));
 				} catch (IOException e) {
 					System.err.println("Couldn't send all clients the message");
 				}
 
 				registeredClients.put(clientInfo.tcpPath, new ChatClientInfo(clientMessage.getData()));
 				
-				return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_ACK, clientMessage.getData() + " registered successfully");
+				return new GlobalChatServerMessage(GlobalChatProtocolKeys.REGISTRATION_ACK, clientMessage.getData() + " registered successfully");
 			}
 		}
 		
 		class WrongKeyHandler implements ChatProtocolKeysHandler {
 			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "Wrong key");
+			public GlobalChatServerMessage apply(GlobalChatServerMessage clientMessage, ClientInfo clientInfo) {
+				return new GlobalChatServerMessage(GlobalChatProtocolKeys.ERROR_MESSAGE, "Wrong key");
 			}
 		}
 		
 		class RemoveReqHandler implements ChatProtocolKeysHandler {
 			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {			
-				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
+			public GlobalChatServerMessage apply(GlobalChatServerMessage clientMessage, ClientInfo clientInfo) {			
+				GlobalChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
 			
 				if(null == errorToClient) {
 					registeredClients.remove(clientInfo.tcpPath);
 					try {
-						sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
+						sendAllChatClients(new GlobalChatServerMessage(GlobalChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
 					} catch (IOException e) {
 						System.err.println("Couldn't send all clients the message");
 					}
@@ -435,12 +440,12 @@ public class Server {
 		
 		class ClientMessageHandler implements ChatProtocolKeysHandler {
 			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
+			public GlobalChatServerMessage apply(GlobalChatServerMessage clientMessage, ClientInfo clientInfo) {
+				GlobalChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
 
 				if(null == errorToClient) {				
 					try {
-						sendAllChatClientsExcept(new ChatServerMessage(ChatProtocolKeys.BROADCAST_MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
+						sendAllChatClientsExcept(new GlobalChatServerMessage(GlobalChatProtocolKeys.BROADCAST_MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
 					} catch (IOException e) {
 						System.err.println("Couldn't send all clients the message");
 					}
@@ -450,20 +455,20 @@ public class Server {
 		}
 	
 		@Override
-		public void handleMessage(ClientInfo clientInfo, Message<K, V>message) throws IOException {
-			ChatServerMessage chatMessage = (ChatServerMessage)message;
+		public void handleMessage(ClientInfo clientInfo, GlobalMessage<K, V>message) throws IOException {
+			GlobalChatServerMessage chatMessage = (GlobalChatServerMessage)message;
 			
-			ChatServerMessage replyToClient = chatMethodsMap.get(chatMessage.getKey()).apply(chatMessage, clientInfo);
+			GlobalChatServerMessage replyToClient = chatMethodsMap.get(chatMessage.getKey()).apply(chatMessage, clientInfo);
 			
 			if(null != replyToClient) {
-				ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, replyToClient);
+				GlobalServerMessage messageToSend = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, replyToClient);
 				ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
 				clientInfo.tcpPath.write(buffer);
 			}
 		}
 	
-		private void sendAllChatClients(ChatServerMessage message) throws IOException {
-			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
+		private void sendAllChatClients(GlobalChatServerMessage message) throws IOException {
+			GlobalServerMessage messageToSend = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, message);
 			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
 			for (SocketChannel clientChannel : registeredClients.keySet()) {
 				clientChannel.write(buffer);
@@ -471,8 +476,8 @@ public class Server {
 			}
 		}
 		
-		private void sendAllChatClientsExcept(ChatServerMessage message, SocketChannel clientNotToSend) throws IOException {
-			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
+		private void sendAllChatClientsExcept(GlobalChatServerMessage message, SocketChannel clientNotToSend) throws IOException {
+			GlobalServerMessage messageToSend = new GlobalServerMessage(GlobalProtocolType.CHAT_SERVER, message);
 			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
 			for (SocketChannel otherClientChannel : registeredClients.keySet()) {
 				if(!otherClientChannel.equals(clientNotToSend)) {					
@@ -498,9 +503,9 @@ public class Server {
 			return false;
 		}
 		
-		private ChatServerMessage checkIfNoSuchClient(ClientInfo clientInfo) {
+		private GlobalChatServerMessage checkIfNoSuchClient(ClientInfo clientInfo) {
 			if(null == registeredClients.get(clientInfo.tcpPath)) {
-				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "You aren't registered");
+				return new GlobalChatServerMessage(GlobalChatProtocolKeys.ERROR_MESSAGE, "You aren't registered");
 			}
 			return null;
 		}
@@ -510,20 +515,20 @@ public class Server {
 	 * Message Handler
 	 **********************************************/
 	private class MessageHandler {
-		private Map<ProtocolType, Protocol> protocolMap = new HashMap<>();
+		private Map<GlobalProtocolType, Protocol> protocolMap = new HashMap<>();
 		
 		public MessageHandler() {
-			addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
-			addProtocol(ProtocolType.CHAT_SERVER, new ChatProtocol<>());
+			addProtocol(GlobalProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
+			addProtocol(GlobalProtocolType.CHAT_SERVER, new GlobalChatProtocol<>());
 		}
 
 		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {
-			ServerMessage clientMessage = (ServerMessage) BytesUtil.toObject(message.array());
-			ProtocolType index = clientMessage.getKey();
+			GlobalServerMessage clientMessage = (GlobalServerMessage) BytesUtil.toObject(message.array());
+			GlobalProtocolType index = clientMessage.getKey();
 			protocolMap.get(index).handleMessage(currentConnection, clientMessage.getData());
 		}
 
-		private void addProtocol(ProtocolType index, Protocol protocol) {
+		private void addProtocol(GlobalProtocolType index, Protocol protocol) {
 			protocolMap.put(index, protocol);
 		}
 

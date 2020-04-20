@@ -10,5 +10,6 @@
 ![Mm]akefile
 !*.java
 !*.jar
+!*.sql
 
 /.metadata/
