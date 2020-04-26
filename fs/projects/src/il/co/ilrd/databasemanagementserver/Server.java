@@ -24,7 +24,7 @@ import il.co.ilrd.DatabaseManagement.*;
 
 
 public class Server {
-    public static final int BUFFER_SIZE = 2048;
+    public static final int BUFFER_SIZE = 4096;
 
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;
@@ -248,7 +248,7 @@ public class Server {
 		@Override
 		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
 	        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-			
+	        
 			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
 	        	throw new IOException();
 	        }
@@ -361,69 +361,256 @@ public class Server {
 	 * IOT Server Protocol
 	 **********************************************/
 	private interface IOTProtocolKeysHandler {
-		public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> requestParameters);
+		public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList);
 	}
 	
-	class IOTProtocol<K, V> implements Protocol<K, V> {
-		DatabaseManagement dbManager;
-		String dbUrl = "jdbc:mysql://localhost:3306/";
-		String dbUserName = "root";
-		String dbPassword = "";
-		
+	private class IOTProtocol<K, V> implements Protocol<K, V> {
+		private static final String URL = "jdbc:mysql://localhost:3306/";
+		private static final String USER_NAME = "root";
+		private static final String PASSWORD = "";
 		private Map<DatabaseKeys, IOTProtocolKeysHandler> iotMethodsMap = new HashMap<>();
 		private Map<String, DatabaseManagement> companyDatabases = new HashMap<>();	
 		
 		public IOTProtocol() {			
 			iotMethodsMap.put(DatabaseKeys.CREATE_COMPANY_DATABASE, new createCompanyDatabaseHandler());
-//			iotMethodsMap.put(DatabaseKeys.CREATE_TABLE, new createTableHandler());
-//			iotMethodsMap.put(DatabaseKeys.DELETE_TABLE, new deleteTableHandler());
-//			iotMethodsMap.put(DatabaseKeys.CREATE_IOT_EVENT, new createIotEventHandler());
-//			iotMethodsMap.put(DatabaseKeys.CREATE_ROW, new createRowHandler());
-//			iotMethodsMap.put(DatabaseKeys.READ_ROW, new readRowHandler());
-//			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_NAME, new readFieldByNameHandler());
-//			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_INDEX, new readFieldByIndexHandler());
-//			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_NAME, new readFieldByNameHandler());
-//			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_INDEX, new readFieldByIndexHandler());
-//			iotMethodsMap.put(DatabaseKeys.DELETE_ROW, new deleteRowHandler());
-//			iotMethodsMap.put(DatabaseKeys.ERROR_MESSAGE, new wrongMessageHandler());
-//			iotMethodsMap.put(DatabaseKeys.ACK_MESSAGE, new wrongMessageHandler());
+			iotMethodsMap.put(DatabaseKeys.CREATE_TABLE, new createTableHandler());
+			iotMethodsMap.put(DatabaseKeys.DELETE_TABLE, new deleteTableHandler());
+			iotMethodsMap.put(DatabaseKeys.CREATE_IOT_EVENT, new createIotEventHandler());
+			iotMethodsMap.put(DatabaseKeys.CREATE_ROW, new createRowHandler());
+			iotMethodsMap.put(DatabaseKeys.READ_ROW, new readRowHandler());
+			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_NAME, new readFieldByNameHandler());
+			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_INDEX, new readFieldByIndexHandler());
+			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_NAME, new updateFieldByNameHandler());
+			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_INDEX, new updateFieldByIndexHandler());
+			iotMethodsMap.put(DatabaseKeys.DELETE_ROW, new deleteRowHandler());
+			iotMethodsMap.put(DatabaseKeys.ERROR_MESSAGE, new invalidKeyHandler());
+			iotMethodsMap.put(DatabaseKeys.ACK_MESSAGE, new invalidKeyHandler());
 		}
 		
 		public class createCompanyDatabaseHandler implements IOTProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> requestParameters) {
-				//if not exists(in order not to create new manager if not needed)
-				if(null == 	companyDatabases.get(databaseName)) {
-					try {
-						dbManager = new DatabaseManagement(dbUrl, dbUserName, dbPassword, databaseName);
-					} catch (SQLException e) {
-						return createErrorMessage(databaseName, e);
-					}
-					companyDatabases.put(databaseName, dbManager);
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
 				}
-				return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), null);
+				
+				return createAckMessage(databaseName, "Database created");
 			}
 		}
 		
-		private DatabaseManagementMessage createErrorMessage(String databaseName, SQLException e) {
+		public class createTableHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					companyDatabases.get(databaseName).createTable(paramList.get(0).toString());
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Table created");
+			}
+		}
+		
+		public class deleteTableHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					companyDatabases.get(databaseName).deleteTable(paramList.get(0).toString());
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Table deleted");
+			}
+		}
+		
+		public class createIotEventHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					companyDatabases.get(databaseName).createIOTEvent(paramList.get(0).toString());
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "IOT Event created");
+			}
+		}
+		
+		public class createRowHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					companyDatabases.get(databaseName).createRow(paramList.get(0).toString());
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Created row");
+			}
+		}
+		
+		public class readRowHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				List<Object> returnList;
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKeyValue = paramList.get(2).toString();
+					returnList = companyDatabases.get(databaseName).readRow(tableName, primaryKeyColumnName, primaryKeyValue);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, returnList);
+			}
+		}
+		
+		public class readFieldByNameHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				Object returnValue;
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKey = paramList.get(2);
+					String columnName = paramList.get(3).toString();		
+					returnValue = companyDatabases.get(databaseName).readField(tableName, primaryKeyColumnName, primaryKey, columnName);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, returnValue);
+			}
+		}
+		
+		public class readFieldByIndexHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				Object returnValue;
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKey = paramList.get(2);
+					int columnIndex = (Integer)paramList.get(3);
+					returnValue = companyDatabases.get(databaseName).readField(tableName, primaryKeyColumnName, primaryKey, columnIndex);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, returnValue);
+			}
+		}
+		
+		public class updateFieldByNameHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKey = paramList.get(2);
+					String columnName = paramList.get(3).toString();
+					Object newValue = paramList.get(4);
+					companyDatabases.get(databaseName).updateField(tableName, primaryKeyColumnName, primaryKey, columnName, newValue);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Field updated by name");
+			}
+		}
+		
+		public class updateFieldByIndexHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKey = paramList.get(2);
+					int columnIndex = (Integer)paramList.get(3);
+					Object newValue = paramList.get(4);
+					companyDatabases.get(databaseName).updateField(tableName, primaryKeyColumnName, primaryKey, columnIndex, newValue);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Field updated by index");
+			}
+		}
+		
+		public class deleteRowHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				try {
+					createDatabaseIfNotInMap(databaseName);
+					String tableName = paramList.get(0).toString();
+					String primaryKeyColumnName = paramList.get(1).toString();
+					Object primaryKey = paramList.get(2);
+					companyDatabases.get(databaseName).deleteRow(tableName, primaryKeyColumnName, primaryKey);
+				} catch (SQLException e) {
+					return createErrorMessage(databaseName, e);
+				}
+				
+				return createAckMessage(databaseName, "Row deleted");
+			}
+		}
+		
+		public class invalidKeyHandler implements IOTProtocolKeysHandler {
+			@Override
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+				return createErrorMessage(databaseName, "Invalid key");
+			}
+		}
+		
+		private void createDatabaseIfNotInMap(String databaseName) throws SQLException {
+			if(null == 	companyDatabases.get(databaseName)) {
+				DatabaseManagement dbManager = new DatabaseManagement(URL, USER_NAME, PASSWORD, databaseName);
+				companyDatabases.put(databaseName, dbManager);
+			}
+		}
+		
+		private DatabaseManagementMessage createErrorMessage(String databaseName, Object exception) {
 			List<Object> errorDescription = new ArrayList<>();
-			errorDescription.add(e);
+			errorDescription.add(exception);
 			
 			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ERROR_MESSAGE), errorDescription);
+		}
+		
+		private DatabaseManagementMessage createAckMessage(String databaseName, Object value) {
+			List<Object> returnList = new ArrayList<>();
+			returnList.add(value);
+			
+			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), returnList);
+		}
+		
+		private DatabaseManagementMessage createAckMessage(String databaseName, List<Object> returnList) {
+			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), returnList);
 		}
 
 		@Override
 		public void handleMessage(ClientInfo clientInfo, Message<K, V> message) throws IOException {
 			DatabaseManagementMessage iotMessage = (DatabaseManagementMessage)message;
 			String databaseName = iotMessage.getKey().getDatabaseName();
-			List <Object> requestParameters = iotMessage.getData();		
-			DatabaseManagementMessage replyToClient = iotMethodsMap.get(iotMessage.getKey().getActionType()).apply(clientInfo, databaseName ,requestParameters);			
+			List <Object> paramList = iotMessage.getData();		
+			DatabaseManagementMessage replyToClient = iotMethodsMap.get(iotMessage.getKey().getActionType()).apply(clientInfo, databaseName ,paramList);			
 			
 			//will the reply ever be null?
 			if(null != replyToClient) {
 				ServerMessage messageToSend = new ServerMessage(ProtocolType.DATABASE_MANAGEMENT, (Message<?, ?>) replyToClient);
 				ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
-				//tcp? udp?
+				//tcp
 				clientInfo.tcpPath.write(buffer);
 			}
 		}
@@ -590,7 +777,7 @@ public class Server {
 		private Map<ProtocolType, Protocol> protocolMap = new HashMap<>();
 		
 		public MessageHandler() {
-			//addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
+			addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
 			//addProtocol(ProtocolType.CHAT_SERVER, new ChatProtocol<>());
 			addProtocol(ProtocolType.DATABASE_MANAGEMENT, new IOTProtocol<>());
 		}

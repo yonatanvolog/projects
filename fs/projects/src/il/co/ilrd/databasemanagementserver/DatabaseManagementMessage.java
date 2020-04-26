@@ -3,8 +3,6 @@ package il.co.ilrd.databasemanagementserver;
 import java.io.Serializable;
 import java.util.List;
 
-import il.co.ilrd.chatserver.Message;
-
 public class DatabaseManagementMessage implements Message<ActionTypeKey, List<Object>> , Serializable{
 	private static final long serialVersionUID = 1L;
 	private ActionTypeKey key;

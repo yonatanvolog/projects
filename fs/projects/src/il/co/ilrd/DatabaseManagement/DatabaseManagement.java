@@ -50,7 +50,7 @@ public class DatabaseManagement {
 			tokens[i] = "," + tokens[i];
 			query += tokens[i];
 		}
-		query += ")";
+		query += ")";		
 		createRow(query);
 	}
 	
