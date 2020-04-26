@@ -1,19 +1,7 @@
-package il.co.ilrd.databasemanagementserver;
+package il.co.ilrd.DatabaseManagement;
 
 public class ActionTypeKey {
-	private String databaseName;
-	private DatabaseKeys actionType;
+	String databaseName;
+	DatabaseManipulationKeys key;
 	
-	public String getDatabaseName() {
-		return databaseName;
-	}
-	public void setDatabaseName(String databaseName) {
-		this.databaseName = databaseName;
-	}
-	public DatabaseKeys getActionType() {
-		return actionType;
-	}
-	public void setActionType(DatabaseKeys actionType) {
-		this.actionType = actionType;
-	}
 }

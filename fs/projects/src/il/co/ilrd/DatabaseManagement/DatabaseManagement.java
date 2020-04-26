@@ -9,8 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import com.mysql.cj.Query;
-
 public class DatabaseManagement {
 	private final String databaseName;
 	private Connection connection;
@@ -19,54 +17,29 @@ public class DatabaseManagement {
 	private final String userName;
 	private final String password;
 		
-	public DatabaseManagement(String databaseName, String url, String userName, String password) {
+	public DatabaseManagement(String url, String userName, String password, String databaseName) throws SQLException {
 		this.databaseName = Objects.requireNonNull(databaseName);
 		this.url = Objects.requireNonNull(url);
 		this.userName = Objects.requireNonNull(userName);
 		this.password = Objects.requireNonNull(password);
+		createDatabase();
 	}
 	
 	public void createTable(String sqlCommand) throws SQLException {
-		Objects.requireNonNull(sqlCommand);
-		
-		try {
-			connectToSQL();
-			statement.executeUpdate(sqlCommand);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
-		}
-		closeResource();
+		executeSqlCommand(sqlCommand);
 	}
 	
 	public void deleteTable(String tableName) throws SQLException {
-		Objects.requireNonNull(tableName);
-		
-		try {
-			connectToSQL();
-			final String query = "DROP TABLE " + tableName;
-			statement.executeUpdate(query);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
-		}
-		closeResource();
+		executeSqlCommand("DROP TABLE " + tableName);
 	}
 	
 	public void createRow(String sqlCommand) throws SQLException {
 		Objects.requireNonNull(sqlCommand);
 		
-		try {
-			connectToSQL();
-			statement.executeUpdate(sqlCommand);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
-		}
-		closeResource();
+		executeSqlCommand(sqlCommand);
 	}
 	
-	/* rawData example: "serialNumber|description|timeStamp", timeStamp is optional */
+	/* rawData example: "serialNumber|description|timeStamp", user is responsible for quotes */
 	public void createIOTEvent(String rawData) throws SQLException {
 		Objects.requireNonNull(rawData);
 		
@@ -74,13 +47,10 @@ public class DatabaseManagement {
 		String[] tokens = rawData.split(DELIMITER);
 		String query = "INSERT into IOTEvent values(null ";
 		for (int i = 0; i < tokens.length; ++i) {
-			if(0 == i | 1 == i) {
-				tokens[i] = "\"" + tokens[i] + "\"";
-			}
 			tokens[i] = "," + tokens[i];
 			query += tokens[i];
 		}
-		query += ");";
+		query += ")";
 		createRow(query);
 	}
 	
@@ -175,31 +145,26 @@ public class DatabaseManagement {
 		Objects.requireNonNull(columnName);
 		Objects.requireNonNull(newValue);	
 		
-		try {
-			connectToSQL();
-			final String query = " UPDATE " + tableName + " SET " + columnName + "="  + "'" +  newValue  + "'" +  " WHERE " + primaryKeyColumnName + "=" + primaryKey +";";
-			statement.executeUpdate(query);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
-		}
-		closeResource();
+		final String query = "UPDATE " + tableName + " SET " + columnName + "="  +  newValue  +  " WHERE " + primaryKeyColumnName + "=" + primaryKey;
+		executeSqlCommand(query);
 	}
 	
 	public void deleteRow(String tableName, String primaryKeyColumnName, Object primaryKey) throws SQLException {
 		Objects.requireNonNull(tableName);
 		Objects.requireNonNull(primaryKeyColumnName);
 		Objects.requireNonNull(primaryKey);
-		
-		try {
-			connectToSQL();
-			final String query = "DELETE FROM " + tableName + " WHERE " + primaryKeyColumnName + "=" + primaryKey + ";";
-			statement.executeUpdate(query);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
+
+		final String query = "DELETE FROM " + tableName + " WHERE " + primaryKeyColumnName + "=" + primaryKey;
+		executeSqlCommand(query);
+	}
+	
+	private void createDatabase() throws SQLException {
+		try(
+				Connection connection = DriverManager.getConnection(url, userName, password);
+				Statement statement = connection.createStatement();
+		){
+			statement.execute("CREATE DATABASE IF NOT EXISTS " + databaseName);
 		}
-		closeResource();
 	}
 	
 	private void connectToSQL() throws SQLException {
@@ -207,9 +172,29 @@ public class DatabaseManagement {
 		statement = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_UPDATABLE);
 	}
 	
+	private void executeSqlCommand(String sqlCommand) throws SQLException {
+		Objects.requireNonNull(sqlCommand);
+				
+		try {
+			connectToSQL();
+			statement.executeUpdate(sqlCommand);
+		} catch (SQLException e) {
+			closeResource();
+			throw e;
+		}
+		closeResource();
+	}
+	
 	private void closeResource() throws SQLException {
-		statement.close();
-		connection.close();
+		if(null != statement) {
+			statement.close();
+			statement = null;
+		}
+		
+		if(null != statement) {
+			connection.close();
+			connection = null;
+		}
 	}
 	
 	//Requires connection be initialized before call

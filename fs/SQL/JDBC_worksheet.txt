@@ -1,0 +1,52 @@
+***JDBC Worksheet***
+
+Reading
+1.	https://en.wikipedia.org/wiki/Java_Database_Connectivity
+2.	http://tutorials.jenkov.com/jdbc/index.html
+3.	https://dev.mysql.com/doc/connector-j/8.0/en/connector-j-usagenotes-connect-drivermanager.html
+
+Videos:
+Java Database Connectivity (JDBC) by Navin Reddy:
+16.1 JDBC | Java Database Connectivity Theory Tutorial
+16.5 Class forName use in JDBC
+16.2 Java Database Connectivity Practical
+16.3 Java Database Connectivity Practical Part 2
+16.4 Java Database Connectivity Practical Part 3 | insert
+ 
+
+Keywords
+1.	MySQL Workbench (recommended program)
+2.	JDBC
+3.	Connection
+4.	Statement
+5.	PreparedStatement
+6.	CallableStatement
+7.	ResultSet
+8.	ResultSet next() method
+9.	java.sql.* library
+10.	forName
+11.	DriverManager
+
+Questions
+1.	What are the core components of JDBC?
+2.	What functionality does JDBC offer?
+3.	What types of drivers are there? describe the main 4.
+4.	What are the 7 steps of connection a Java application with database?
+ 
+
+Exercise
+1.	Make sure you have a running sql server.
+All via java code:
+2.Create a Parent table with parent_id primary key, name, job  and address fields.
+3. Create a Child table with child_id primary key, parent_id foreign key, name and class fields.
+4. Insert into Parent table: 1, Yossi, Jr Dev, Tel Aviv.
+5. Insert into Child table: Yossi jr, 1 (Father is Yossi), 6.
+6. Via terminal/ MySQL Workbench, run a script to check ex. 1-5 executed correctly. continue checking the next assignments too.
+7. Yossi jr got into an accident. Delete his record from the table.
+8. Yossi is not interested in having kids anymore. Delete Child table.
+9. Promote Yossi to Engineer (using update field by column name).
+10. Promote Yossi to Tech Lead (using update field by column index).
+11. Print out Yossi's record (the whole row).
+12. Print out Yossi's job using read field by column name.
+13. Print out Yossi's job using read field by column index.
+

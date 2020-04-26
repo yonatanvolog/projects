@@ -8,11 +8,11 @@ public class TestDatabaseManagement {
 	static int testNumber = 1;
 	
 	public static void main(String[] args) throws SQLException {
-		String dbName = "tadiran";
 		String url = "jdbc:mysql://localhost:3306/";
 		String uname = "root";
 		String pass = "";
-		DatabaseManagement manager = new DatabaseManagement(dbName, url, uname, pass);
+		String dbName = "tadiran";
+		DatabaseManagement manager = new DatabaseManagement(url, uname, pass, dbName);
 
 		WaitForKeyPress();
 		test1_createTable(manager);
@@ -52,6 +52,8 @@ public class TestDatabaseManagement {
 		
 		te1(manager);
 		te2(manager);
+		
+		new DatabaseManagement(url, uname, pass, "YoniDB");
 	}
 	
 	private static void test1_createTable(DatabaseManagement manager) throws SQLException {
@@ -89,7 +91,7 @@ public class TestDatabaseManagement {
 	}
 	
 	private static void test7_updateField1(DatabaseManagement manager) throws SQLException {
-		manager.updateField("Parent", "parentID", "1", "job", "Engineer");
+		manager.updateField("Parent", "parentID", "1", "job", "\"Engineer\"");
 	}
 	
 	private static void test8_updateField2(DatabaseManagement manager) throws SQLException {
@@ -117,7 +119,7 @@ public class TestDatabaseManagement {
 	}
 	
 	private static void test12_createIOTEvent(DatabaseManagement manager) throws SQLException {
-		manager.createIOTEvent("00001|software update 1.2|null");
+		manager.createIOTEvent("\"00001\"|\"software update 1.2\"|null");
 		
 		List<Object> row = manager.readRow("IOTEvent", "iot_event_id", "2");
 		System.out.println("Listing elements in IOTEvent, where iot_event_id=2");

@@ -1,4 +1,4 @@
-package il.co.ilrd.DatabaseManagement;
+package il.co.ilrd.databasemanagementserver;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -11,6 +11,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -357,48 +358,175 @@ public class Server {
 	}
 	
 	/**********************************************
-	 * Chat Server Protocol
+	 * IOT Server Protocol
 	 **********************************************/
 	private interface IOTProtocolKeysHandler {
-		public DatabaseManagementMessage apply(Object[] requestParameters, ClientInfo clientInfo);
+		public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> requestParameters);
 	}
 	
 	class IOTProtocol<K, V> implements Protocol<K, V> {
 		DatabaseManagement dbManager;
-
-		//private Map<SocketChannel, ChatClientInfo> registeredClients = new HashMap<>();	
-		private Map<ActionTypeKey, ChatProtocolKeysHandler> iotMethodsMap = new HashMap<>();
-
+		String dbUrl = "jdbc:mysql://localhost:3306/";
+		String dbUserName = "root";
+		String dbPassword = "";
 		
+		private Map<DatabaseKeys, IOTProtocolKeysHandler> iotMethodsMap = new HashMap<>();
+		private Map<String, DatabaseManagement> companyDatabases = new HashMap<>();	
 		
-		public IOTProtocol() {
-			ByteBuffer iotMethodsMap;
-			iotMethodsMap.put(DatabaseManipulationKeys.CREATE_TABLE, new createTableHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.DELETE_TABLE, new deleteTableHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.CREATE_ROW, new createRowHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.READ_ROW, new readRowHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.READ_FIELD, new readFieldHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.UPDATE_FIELD, new updateFieldHandler());
-			iotMethodsMap.put(DatabaseManipulationKeys.DELETE_ROW, new deleteRowHandler());
+		public IOTProtocol() {			
+			iotMethodsMap.put(DatabaseKeys.CREATE_COMPANY_DATABASE, new createCompanyDatabaseHandler());
+//			iotMethodsMap.put(DatabaseKeys.CREATE_TABLE, new createTableHandler());
+//			iotMethodsMap.put(DatabaseKeys.DELETE_TABLE, new deleteTableHandler());
+//			iotMethodsMap.put(DatabaseKeys.CREATE_IOT_EVENT, new createIotEventHandler());
+//			iotMethodsMap.put(DatabaseKeys.CREATE_ROW, new createRowHandler());
+//			iotMethodsMap.put(DatabaseKeys.READ_ROW, new readRowHandler());
+//			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_NAME, new readFieldByNameHandler());
+//			iotMethodsMap.put(DatabaseKeys.READ_FIELD_BY_INDEX, new readFieldByIndexHandler());
+//			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_NAME, new readFieldByNameHandler());
+//			iotMethodsMap.put(DatabaseKeys.UPDATE_FIELD_BY_INDEX, new readFieldByIndexHandler());
+//			iotMethodsMap.put(DatabaseKeys.DELETE_ROW, new deleteRowHandler());
+//			iotMethodsMap.put(DatabaseKeys.ERROR_MESSAGE, new wrongMessageHandler());
+//			iotMethodsMap.put(DatabaseKeys.ACK_MESSAGE, new wrongMessageHandler());
 		}
 		
-		class createTableHandler implements IOTProtocolKeysHandler {
+		public class createCompanyDatabaseHandler implements IOTProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(Object[] requestParameters, ClientInfo clientInfo) {
-				
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> requestParameters) {
+				//if not exists(in order not to create new manager if not needed)
+				if(null == 	companyDatabases.get(databaseName)) {
+					try {
+						dbManager = new DatabaseManagement(dbUrl, dbUserName, dbPassword, databaseName);
+					} catch (SQLException e) {
+						return createErrorMessage(databaseName, e);
+					}
+					companyDatabases.put(databaseName, dbManager);
+				}
+				return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), null);
 			}
 		}
 		
-			//ActionTypeKey, Object[]	
-		@Override
-		public void handleMessage(ClientInfo serverSocket, Message<K, V> message) throws IOException {
-			DatabaseManagementMessage iotMessage = (DatabaseManagementMessage)message;
-			iotMessage.getKey()
+		private DatabaseManagementMessage createErrorMessage(String databaseName, SQLException e) {
+			List<Object> errorDescription = new ArrayList<>();
+			errorDescription.add(e);
 			
-			dbManager = new DatabaseManagement(databaseName, url, userName, password);
-			
+			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ERROR_MESSAGE), errorDescription);
 		}
-		
+
+		@Override
+		public void handleMessage(ClientInfo clientInfo, Message<K, V> message) throws IOException {
+			DatabaseManagementMessage iotMessage = (DatabaseManagementMessage)message;
+			String databaseName = iotMessage.getKey().getDatabaseName();
+			List <Object> requestParameters = iotMessage.getData();		
+			DatabaseManagementMessage replyToClient = iotMethodsMap.get(iotMessage.getKey().getActionType()).apply(clientInfo, databaseName ,requestParameters);			
+			
+			//will the reply ever be null?
+			if(null != replyToClient) {
+				ServerMessage messageToSend = new ServerMessage(ProtocolType.DATABASE_MANAGEMENT, (Message<?, ?>) replyToClient);
+				ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
+				//tcp? udp?
+				clientInfo.tcpPath.write(buffer);
+			}
+		}
+	}
+	
+	/**********************************************
+	 * Chat Server Protocol
+	 **********************************************/
+//	class ChatClientInfo {
+//		private String name;
+//
+//		public ChatClientInfo(String name) {
+//			this.name = name;
+//		}
+//		
+//		public String getName() {
+//			return name;
+//		}
+//	}
+//	
+//	private interface ChatProtocolKeysHandler {
+//		public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo);
+//	}
+//	
+//	private class ChatProtocol<K, V> implements Protocol<K, V> {			
+//		private Map<SocketChannel, ChatClientInfo> registeredClients = new HashMap<>();
+//		private Map<ChatProtocolKeys, ChatProtocolKeysHandler> chatMethodsMap = new HashMap<>();
+//		
+//		public ChatProtocol() {
+//			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REQUEST, new RegistrationReqHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_ACK, new WrongKeyHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REFUSE, new WrongKeyHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.MESSAGE, new ClientMessageHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.BROADCAST_MESSAGE, new WrongKeyHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.REMOVE_REQUEST, new RemoveReqHandler());
+//			chatMethodsMap.put(ChatProtocolKeys.ERROR_MESSAGE, new WrongKeyHandler());
+//		}
+//		
+//		class RegistrationReqHandler implements ChatProtocolKeysHandler {
+//			@Override
+//			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
+//				if(true == checkIfNameIsTaken(clientMessage.getData())) {
+//					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with such name already exists");
+//				}
+//				
+//				if(true == checkIfSocketIsTaken(clientInfo.tcpPath)) {
+//					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with this socket already exists");
+//				}
+//				
+//				try {
+//					sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.NEW_CLIENT_REGISTRATION, "New client registered: " + clientMessage.getData()));
+//				} catch (IOException e) {
+//					System.err.println("Couldn't send all clients the message");
+//				}
+//
+//				registeredClients.put(clientInfo.tcpPath, new ChatClientInfo(clientMessage.getData()));
+//				
+//				return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_ACK, clientMessage.getData() + " registered successfully");
+//			}
+//		}
+//		
+//		class WrongKeyHandler implements ChatProtocolKeysHandler {
+//			@Override
+//			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
+//				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "Wrong key");
+//			}
+//		}
+//		
+//		class RemoveReqHandler implements ChatProtocolKeysHandler {
+//			@Override
+//			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {			
+//				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
+//			
+//				if(null == errorToClient) {
+//					registeredClients.remove(clientInfo.tcpPath);
+//					try {
+//						sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
+//					} catch (IOException e) {
+//						System.err.println("Couldn't send all clients the message");
+//					}
+//				}
+//				
+//				return errorToClient;
+//			}
+//		}
+//		
+//		class ClientMessageHandler implements ChatProtocolKeysHandler {
+//			@Override
+//			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
+//				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
+//
+//				if(null == errorToClient) {				
+//					try {
+//						sendAllChatClientsExcept(new ChatServerMessage(ChatProtocolKeys.BROADCAST_MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
+//					} catch (IOException e) {
+//						System.err.println("Couldn't send all clients the message");
+//					}
+//				}
+//				return errorToClient;
+//			}
+//		}
+//	
+//		@Override
 //		public void handleMessage(ClientInfo clientInfo, Message<K, V>message) throws IOException {
 //			ChatServerMessage chatMessage = (ChatServerMessage)message;
 //			
@@ -410,161 +538,50 @@ public class Server {
 //				clientInfo.tcpPath.write(buffer);
 //			}
 //		}
-	}
-	
-	/**********************************************
-	 * Chat Server Protocol
-	 **********************************************/
-	class ChatClientInfo {
-		private String name;
-
-		public ChatClientInfo(String name) {
-			this.name = name;
-		}
-		
-		public String getName() {
-			return name;
-		}
-	}
-	
-	private interface ChatProtocolKeysHandler {
-		public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo);
-	}
-	
-	private class ChatProtocol<K, V> implements Protocol<K, V> {			
-		private Map<SocketChannel, ChatClientInfo> registeredClients = new HashMap<>();	
-		private Map<ChatProtocolKeys, ChatProtocolKeysHandler> chatMethodsMap = new HashMap<>();
-		
-		public ChatProtocol() {
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REQUEST, new RegistrationReqHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_ACK, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REGISTRATION_REFUSE, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.MESSAGE, new ClientMessageHandler());
-			chatMethodsMap.put(ChatProtocolKeys.BROADCAST_MESSAGE, new WrongKeyHandler());
-			chatMethodsMap.put(ChatProtocolKeys.REMOVE_REQUEST, new RemoveReqHandler());
-			chatMethodsMap.put(ChatProtocolKeys.ERROR_MESSAGE, new WrongKeyHandler());
-		}
-		
-		class RegistrationReqHandler implements ChatProtocolKeysHandler {
-			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				if(true == checkIfNameIsTaken(clientMessage.getData())) {
-					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with such name already exists");
-				}
-				
-				if(true == checkIfSocketIsTaken(clientInfo.tcpPath)) {
-					return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_REFUSE, "Client with this socket already exists");
-				}
-				
-				try {
-					sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.NEW_CLIENT_REGISTRATION, "New client registered: " + clientMessage.getData()));
-				} catch (IOException e) {
-					System.err.println("Couldn't send all clients the message");
-				}
-
-				registeredClients.put(clientInfo.tcpPath, new ChatClientInfo(clientMessage.getData()));
-				
-				return new ChatServerMessage(ChatProtocolKeys.REGISTRATION_ACK, clientMessage.getData() + " registered successfully");
-			}
-		}
-		
-		class WrongKeyHandler implements ChatProtocolKeysHandler {
-			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "Wrong key");
-			}
-		}
-		
-		class RemoveReqHandler implements ChatProtocolKeysHandler {
-			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {			
-				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
-			
-				if(null == errorToClient) {
-					registeredClients.remove(clientInfo.tcpPath);
-					try {
-						sendAllChatClients(new ChatServerMessage(ChatProtocolKeys.MESSAGE, "Client left chat: " + clientMessage.getData()));
-					} catch (IOException e) {
-						System.err.println("Couldn't send all clients the message");
-					}
-				}
-				
-				return errorToClient;
-			}
-		}
-		
-		class ClientMessageHandler implements ChatProtocolKeysHandler {
-			@Override
-			public ChatServerMessage apply(ChatServerMessage clientMessage, ClientInfo clientInfo) {
-				ChatServerMessage errorToClient = checkIfNoSuchClient(clientInfo);
-
-				if(null == errorToClient) {				
-					try {
-						sendAllChatClientsExcept(new ChatServerMessage(ChatProtocolKeys.BROADCAST_MESSAGE,registeredClients.get(clientInfo.tcpPath) + ": " + clientMessage.getData()), clientInfo.tcpPath);
-					} catch (IOException e) {
-						System.err.println("Couldn't send all clients the message");
-					}
-				}
-				return errorToClient;
-			}
-		}
-	
-		@Override
-		public void handleMessage(ClientInfo clientInfo, Message<K, V>message) throws IOException {
-			ChatServerMessage chatMessage = (ChatServerMessage)message;
-			
-			ChatServerMessage replyToClient = chatMethodsMap.get(chatMessage.getKey()).apply(chatMessage, clientInfo);
-			
-			if(null != replyToClient) {
-				ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, replyToClient);
-				ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
-				clientInfo.tcpPath.write(buffer);
-			}
-		}
-	
-		private void sendAllChatClients(ChatServerMessage message) throws IOException {
-			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
-			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
-			for (SocketChannel clientChannel : registeredClients.keySet()) {
-				clientChannel.write(buffer);
-				buffer.clear();
-			}
-		}
-		
-		private void sendAllChatClientsExcept(ChatServerMessage message, SocketChannel clientNotToSend) throws IOException {
-			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
-			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
-			for (SocketChannel otherClientChannel : registeredClients.keySet()) {
-				if(!otherClientChannel.equals(clientNotToSend)) {					
-					otherClientChannel.write(buffer);
-					buffer.clear();
-				}
-			}
-		}
-		
-		private boolean checkIfNameIsTaken(String name) {
-			for (ChatClientInfo clientInfo : registeredClients.values()) {
-				if(clientInfo.getName().equals(name)) {
-					return true;
-				}
-			}
-			return false;
-		}
-		
-		private boolean checkIfSocketIsTaken(SocketChannel clientSocket) {
-			if(null != registeredClients.get(clientSocket)) {
-				return true;
-			}
-			return false;
-		}
-		
-		private ChatServerMessage checkIfNoSuchClient(ClientInfo clientInfo) {
-			if(null == registeredClients.get(clientInfo.tcpPath)) {
-				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "You aren't registered");
-			}
-			return null;
-		}
-	}
+//	
+//		private void sendAllChatClients(ChatServerMessage message) throws IOException {
+//			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
+//			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
+//			for (SocketChannel clientChannel : registeredClients.keySet()) {
+//				clientChannel.write(buffer);
+//				buffer.clear();
+//			}
+//		}
+//		
+//		private void sendAllChatClientsExcept(ChatServerMessage message, SocketChannel clientNotToSend) throws IOException {
+//			ServerMessage messageToSend = new ServerMessage(ProtocolType.CHAT_SERVER, message);
+//			ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
+//			for (SocketChannel otherClientChannel : registeredClients.keySet()) {
+//				if(!otherClientChannel.equals(clientNotToSend)) {					
+//					otherClientChannel.write(buffer);
+//					buffer.clear();
+//				}
+//			}
+//		}
+//		
+//		private boolean checkIfNameIsTaken(String name) {
+//			for (ChatClientInfo clientInfo : registeredClients.values()) {
+//				if(clientInfo.getName().equals(name)) {
+//					return true;
+//				}
+//			}
+//			return false;
+//		}
+//		
+//		private boolean checkIfSocketIsTaken(SocketChannel clientSocket) {
+//			if(null != registeredClients.get(clientSocket)) {
+//				return true;
+//			}
+//			return false;
+//		}
+//		
+//		private ChatServerMessage checkIfNoSuchClient(ClientInfo clientInfo) {
+//			if(null == registeredClients.get(clientInfo.tcpPath)) {
+//				return new ChatServerMessage(ChatProtocolKeys.ERROR_MESSAGE, "You aren't registered");
+//			}
+//			return null;
+//		}
+//	}
 
 	/***********************************************
 	 * Message Handler
@@ -573,8 +590,9 @@ public class Server {
 		private Map<ProtocolType, Protocol> protocolMap = new HashMap<>();
 		
 		public MessageHandler() {
-			addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
-			addProtocol(ProtocolType.CHAT_SERVER, new ChatProtocol<>());
+			//addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
+			//addProtocol(ProtocolType.CHAT_SERVER, new ChatProtocol<>());
+			addProtocol(ProtocolType.DATABASE_MANAGEMENT, new IOTProtocol<>());
 		}
 
 		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {
