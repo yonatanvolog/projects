@@ -18,6 +18,11 @@ public class DatabaseManagement {
 	private final String password;
 		
 	public DatabaseManagement(String url, String userName, String password, String databaseName) throws SQLException {
+		Objects.requireNonNull(url);
+		Objects.requireNonNull(userName);
+		Objects.requireNonNull(password);
+		Objects.requireNonNull(databaseName);
+		
 		this.databaseName = Objects.requireNonNull(databaseName);
 		this.url = Objects.requireNonNull(url);
 		this.userName = Objects.requireNonNull(userName);

@@ -23,13 +23,13 @@ import java.util.Set;
 import il.co.ilrd.DatabaseManagement.*;
 
 
-public class Server {
+public class IOTServer {
     public static final int BUFFER_SIZE = 4096;
 
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;
 
-	public Server() throws IOException {
+	public IOTServer() throws IOException {
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
 	}
