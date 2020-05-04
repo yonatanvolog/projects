@@ -5,15 +5,15 @@ import java.net.MalformedURLException;
 public class ParserTest {
 	public static void main(String[] args) throws MalformedURLException {
 		String postman1 = 
-		"GET /watch?v=t5n07Ybz7yI HTTP/1.1\n" + 
+		"GET /watch?v=t5n07Ybz7yI HTTP/1.1\r\n" + 
 		"Host: www.youtube.com\n" + 
-		"Cookie: YSC=bl1u8g2j1tM; GPS=1; VISITOR_INFO1_LIVE=AHYba5u8wP4\n" + 
-		"\n" + 
+		"Cookie: YSC=bl1u8g2j1tM; GPS=1; VISITOR_INFO1_LIVE=AHYba5u8wP4\r\n" + 
+		"\r\n" + 
 		"";
 		
 		System.out.println("\nmypostman");
 		String mypostman = 
-		"GET http://www.youtube.com/watch?v=t5n07Ybz7yI HTTP/1.1\r\n" +
+		"GET www.youtube.com/watch?v=t5n07Ybz7yI HTTP/1.1\r\n" +
 		//"Host: kukamoka\r\n" + 
 		"\r\n";
 

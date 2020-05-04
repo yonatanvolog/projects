@@ -1,7 +1,5 @@
 package il.co.ilrd.http_message;
 
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,14 +7,13 @@ public class HttpParser {
 	private StartLineParser startLine;
 	private HeaderParser header;
 	private BodyParser body;
-	private final static String NEW_LINE = "\r\n";
-	private final static String EMPTY_LINE = NEW_LINE + NEW_LINE; 
-	private final static String HTTP_PREFIX = "http://";
+	private final static String CRLF = "\r\n";
+	private final static String EMPTY_LINE = CRLF + CRLF; 
 	private final static String EMPTY_STRING = "";
 
-	public HttpParser(String message) throws MalformedURLException {	
-		header = new HeaderParser(message);	
+	public HttpParser(String message) {	
 		startLine = new StartLineParser(message);	
+		header = new HeaderParser(message);	
 		body = new BodyParser(message);
 	}
 	
@@ -41,9 +38,9 @@ public class HttpParser {
 	}
 	
 	private static int getFirstIndexOfHeaders(String message) {
-		int indexOfStartLineEnd = message.indexOf(NEW_LINE);
+		int indexOfStartLineEnd = message.indexOf(CRLF);
 		
-		return indexOfStartLineEnd + NEW_LINE.length();
+		return indexOfStartLineEnd + CRLF.length();
 	}
 	
 	private static int getFirstIndexOfBody(String message) {
@@ -52,25 +49,18 @@ public class HttpParser {
 		
 		return indexOfHeadersEnd + EMPTY_LINE.length();
 	}
-
-	private static boolean isResponse(String message) {
-		if(message.startsWith("HTTP")) {
-			return true;
-		}
-		return false;
-	}
-	
-	private static boolean isRequest(String message) {
-		return !isResponse(message);
-	}
 	
 	public class StartLineParser {
 		HttpMethod method;
 		HttpVersion version;
 		HttpStatusCode status;
-		URL url;
+		String url;
+		boolean isRequest;
+		boolean isReply;
 		
-		public StartLineParser(String message) throws MalformedURLException {
+		public StartLineParser(String message) {
+			isRequest = isRequestInit(message);
+			isReply = isReplyInit(message);
 			this.method = getMethodFromHttpMessage(message);
 			this.version = getVersionFromHttpMessage(message);
 			this.status = getStatusFromHttpMessage(message);
@@ -81,7 +71,7 @@ public class HttpParser {
 			return method;
 		}
 		
-		public URL getURL() {
+		public String getURL() {
 			return url;
 		}
 		
@@ -90,23 +80,30 @@ public class HttpParser {
 		}
 		
 		public boolean isRequest() {
-			if(null != method && null == status) {
-				return true;
-			}
-			
-			return false;
+			return isRequest;
 		}
 		
 		public boolean isReply() {
-			return !isRequest();
+			return isReply;
 		}
 		
 		public HttpVersion getHttpVersion() {
 			return version;
 		}
 		
+		private boolean isReplyInit(String message) {
+			if(message.startsWith("HTTP")) {
+				return true;
+			}
+			return false;
+		}
+		
+		private boolean isRequestInit(String message) {
+			return !isReplyInit(message);
+		}
+		
 		private HttpMethod getMethodFromHttpMessage(String message) {
-			if(HttpParser.isRequest(message)) {
+			if(isRequest) {
 				for(HttpMethod method : HttpMethod.values()) {
 					if(message.startsWith(method.getMethodAsString())) {
 						return method;
@@ -141,22 +138,13 @@ public class HttpParser {
 			return null;
 		}
 		
-		private URL getUrlFromHttpMessage(String message) throws MalformedURLException {
-			URL url = null;
+		private String getUrlFromHttpMessage(String message) {
+			String url = null;
 
-			if(HttpParser.isRequest(message)) {
+			if(isRequest) {
 				final String SPACE_DELIMITER = " ";
-		        String[] tokens = getStartLineSubstring(message).split(SPACE_DELIMITER);  
-				
-				if(!tokens[1].startsWith(HTTP_PREFIX)) {
-					if(null == header.getHeader("Host")) {
-						throw new MalformedURLException("Missing host header");
-					}
-					url = new URL(HTTP_PREFIX + header.getHeader("Host") + tokens[1]);
-				}
-				else {
-					url = new URL(tokens[1]);
-				}
+		        String[] tokens = getStartLineSubstring(message).split(SPACE_DELIMITER); 
+				url = tokens[1];
 			}
 			
 			return url;
@@ -193,9 +181,9 @@ public class HttpParser {
 		}
 		
 		private boolean includesHeaders(String message) {
-			String[] startLineAndHeaders = message.split(NEW_LINE, 2);
+			String[] startLineAndHeaders = message.split(CRLF, 2);
 
-			return !startLineAndHeaders[1].startsWith(NEW_LINE);
+			return !startLineAndHeaders[1].startsWith(CRLF);
 		}
 
 		private Map<String, String> createMapOfHeaders(String message) {
@@ -203,7 +191,7 @@ public class HttpParser {
 			Map<String, String> mapOfHeaders = new HashMap<>();
 			
 			if(!headers.equals(EMPTY_STRING)) {
-				String[] rows = headers.split(NEW_LINE);  
+				String[] rows = headers.split(CRLF);  
 				for (String row : rows) {
 					final String PAIR_DELIMITER = ": ";					
 					String[] pair = row.split(PAIR_DELIMITER);
@@ -234,7 +222,7 @@ public class HttpParser {
 		}
 		
 		private String getBodyFromHttpMessage(String message) {
-			String[] secondSplitResult = message.split(NEW_LINE + NEW_LINE, 2);
+			String[] secondSplitResult = message.split(CRLF + CRLF, 2);
 			
 			if (secondSplitResult[1].length() > 0) {
 				return secondSplitResult[1];
