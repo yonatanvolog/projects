@@ -8,7 +8,7 @@ public class RunServer {
 		IOTServer server = new IOTServer();
 			
 //		server.addTcpConnection(ProtocolPort.CHAT_PROTOCOL_PORT.getPort());			
-		server.addTcpConnection(ProtocolPort.PINGPONG_PROTOCOL_PORT.getPort());
+//		server.addTcpConnection(ProtocolPort.PINGPONG_PROTOCOL_PORT.getPort());
 		server.addTcpConnection(ProtocolPort.DATABASE_MANAGEMENT_PORT.getPort());
 	
 		

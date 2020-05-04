@@ -29,8 +29,8 @@ public class RunTadiranClient {
 		System.out.println(companyName + " Connecting to DB server " + InetAddress.getLocalHost() + " in port " + portNumber);
 
 		try {
-			//clientSocket = SocketChannel.open(new InetSocketAddress(hostName, portNumber));
-			clientSocket = SocketChannel.open(new InetSocketAddress(InetAddress.getLocalHost(), portNumber));
+			//clientSocket = SocketChannel.open(new InetSocketAddress(InetAddress.getLocalHost(), portNumber));
+			clientSocket = SocketChannel.open(new InetSocketAddress("172.20.20.3", portNumber));
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}
@@ -56,7 +56,7 @@ public class RunTadiranClient {
 		
 		// send read filed by index message
 		prepareAndSendMessage(DatabaseKeys.READ_FIELD_BY_INDEX, "TestCountry",  "country_id", 2, 2);
-				
+					
 		// send create iot message //PROBLEM
 		prepareAndSendMessage(DatabaseKeys.CREATE_IOT_EVENT, "\"00001\"|\"software update 2.0\"|null");
 

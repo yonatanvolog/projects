@@ -1,7 +1,6 @@
 package il.co.ilrd.databasemanagementserver;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -19,9 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
-import il.co.ilrd.DatabaseManagement.*;
-
+import il.co.ilrd.DatabaseManagement.DatabaseManagement;
 
 public class IOTServer {
     public static final int BUFFER_SIZE = 4096;
@@ -111,7 +108,7 @@ public class IOTServer {
 		                SelectionKey key = iter.next();
 		                Channel currentChannel = key.channel();
 		 
-		                if(key.isValid() && key.isAcceptable()) {
+		                if(key.isValid() && key.isAcceptable()) {		                	
 		                	ServerSocketChannel tcpServer = (ServerSocketChannel) connectionsMap.get(currentChannel).getChannel();
 		                	SocketChannel tcpClient = tcpServer.accept();
 		                	
@@ -120,7 +117,7 @@ public class IOTServer {
 		                	connectionsMap.put(tcpClient, connectionsMap.get(currentChannel));        	
 		                }
 		                
-		                if(key.isValid() && key.isReadable()) {	
+		                if(key.isValid() && key.isReadable()) {
 	                		Connection currentConnection = connectionsMap.get(currentChannel);
 	                		currentConnection.receiveMessage(currentChannel);
 	                	}
@@ -224,7 +221,7 @@ public class IOTServer {
 		@Override
 		public void configureServerSocket(Selector selector) throws IOException {
 			serverSocket.bind(new InetSocketAddress(port));
-			serverSocket.configureBlocking(false);
+	    	serverSocket.configureBlocking(false);
 	    	serverSocket.register(selector, SelectionKey.OP_ACCEPT);
 	    }
 
@@ -248,7 +245,7 @@ public class IOTServer {
 		@Override
 		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
 	        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-	        
+			
 			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
 	        	throw new IOException();
 	        }
@@ -320,7 +317,7 @@ public class IOTServer {
 	private interface Protocol<K, V> { 
 		public void handleMessage(ClientInfo serverSocket, Message<K, V> message) throws IOException;
 	}
-
+	
 	/**********************************************
 	 * Ping Pong Protocol
 	 **********************************************/
@@ -390,13 +387,7 @@ public class IOTServer {
 		public class createCompanyDatabaseHandler implements IOTProtocolKeysHandler {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
-				try {
-					createDatabaseIfNotInMap(databaseName);
-				} catch (SQLException e) {
-					return createErrorMessage(databaseName, e);
-				}
-				
-				return createAckMessage(databaseName, "Database created");
+				return createAckMessage(databaseName, "Database already created automatically");
 			}
 		}
 		
@@ -404,7 +395,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createTable(paramList.get(0).toString());
 				} catch (SQLException e) {
 					return createErrorMessage(databaseName, e);
@@ -418,7 +408,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).deleteTable(paramList.get(0).toString());
 				} catch (SQLException e) {
 					return createErrorMessage(databaseName, e);
@@ -432,7 +421,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createIOTEvent(paramList.get(0).toString());
 				} catch (SQLException e) {
 					return createErrorMessage(databaseName, e);
@@ -446,7 +434,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createRow(paramList.get(0).toString());
 				} catch (SQLException e) {
 					return createErrorMessage(databaseName, e);
@@ -461,7 +448,6 @@ public class IOTServer {
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				List<Object> returnList;
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKeyValue = paramList.get(2).toString();
@@ -479,7 +465,6 @@ public class IOTServer {
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				Object returnValue;
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKey = paramList.get(2);
@@ -498,7 +483,6 @@ public class IOTServer {
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				Object returnValue;
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKey = paramList.get(2);
@@ -516,7 +500,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKey = paramList.get(2);
@@ -535,7 +518,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKey = paramList.get(2);
@@ -554,7 +536,6 @@ public class IOTServer {
 			@Override
 			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
 				try {
-					createDatabaseIfNotInMap(databaseName);
 					String tableName = paramList.get(0).toString();
 					String primaryKeyColumnName = paramList.get(1).toString();
 					Object primaryKey = paramList.get(2);
@@ -603,14 +584,19 @@ public class IOTServer {
 		public void handleMessage(ClientInfo clientInfo, Message<K, V> message) throws IOException {
 			DatabaseManagementMessage iotMessage = (DatabaseManagementMessage)message;
 			String databaseName = iotMessage.getKey().getDatabaseName();
-			List <Object> paramList = iotMessage.getData();		
-			DatabaseManagementMessage replyToClient = iotMethodsMap.get(iotMessage.getKey().getActionType()).apply(clientInfo, databaseName ,paramList);			
+			List <Object> paramList = iotMessage.getData();
+			DatabaseManagementMessage replyToClient = null;
 			
-			//will the reply ever be null?
+			try {
+				createDatabaseIfNotInMap(databaseName);
+				replyToClient = iotMethodsMap.get(iotMessage.getKey().getActionType()).apply(clientInfo, databaseName ,paramList);			
+			}catch (SQLException | IndexOutOfBoundsException | ClassCastException e) {
+				replyToClient = createErrorMessage(databaseName, e);
+			}
+
 			if(null != replyToClient) {
 				ServerMessage messageToSend = new ServerMessage(ProtocolType.DATABASE_MANAGEMENT, (Message<?, ?>) replyToClient);
 				ByteBuffer buffer = ByteBuffer.wrap(BytesUtil.toByteArray(messageToSend));
-				//tcp
 				clientInfo.tcpPath.write(buffer);
 			}
 		}
@@ -769,7 +755,7 @@ public class IOTServer {
 //			return null;
 //		}
 //	}
-
+	
 	/***********************************************
 	 * Message Handler
 	 **********************************************/
@@ -777,8 +763,8 @@ public class IOTServer {
 		private Map<ProtocolType, Protocol> protocolMap = new HashMap<>();
 		
 		public MessageHandler() {
-			addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<String, Void>());
-			//addProtocol(ProtocolType.CHAT_SERVER, new ChatProtocol<>());
+//			addProtocol(ProtocolType.PINGPONG, new PingPongProtocol<>());
+//			addProtocol(ProtocolType.DATABASE_MANAGEMENT, new ChatProtocol<>());
 			addProtocol(ProtocolType.DATABASE_MANAGEMENT, new IOTProtocol<>());
 		}
 
