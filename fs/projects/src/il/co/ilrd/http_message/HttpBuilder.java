@@ -8,7 +8,7 @@ public class HttpBuilder {
 	private final static String HEADER_SEPERATOR = ": ";
 	private final static String EMPTY_STRING = "";
 
-	static String createHttpRequestMessage(HttpMethod method, HttpVersion version, String url, Map<String, String> header, String body){
+	public static String createHttpRequestMessage(HttpMethod method, HttpVersion version, String url, Map<String, String> header, String body){
 		return
 			StartLineBuilder.createStartLineRequest(method, version, url) +
 			HeaderBuilder.createHeader(header) + 
@@ -16,7 +16,7 @@ public class HttpBuilder {
 			BodyBuilder.createBody(body);
 	}
 	
-	static String createHttpResponseMessage(HttpVersion version, HttpStatusCode code, Map<String, String> header, String body){
+	public static String createHttpResponseMessage(HttpVersion version, HttpStatusCode code, Map<String, String> header, String body){
 		return
 			StartLineBuilder.createStartLineResponse(version, code) +
 			HeaderBuilder.createHeader(header) +

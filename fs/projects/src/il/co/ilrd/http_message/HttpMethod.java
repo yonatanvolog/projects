@@ -1,11 +1,14 @@
 package il.co.ilrd.http_message;
 
 public enum HttpMethod {
-	POST("POST"),
 	GET("GET"),
+	POST("POST"),
 	PUT("PUT"),
+	DELETE("DELETE"),
+	OPTIONS("OPTIONS"),
+	TRACE("TRACE"),
 	PATCH("PATCH"),
-	DELETE("DELETE")
+	HEAD("HEAD")
 	;
 	
 	private String method;
