@@ -12,7 +12,6 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -21,12 +20,10 @@ import java.util.Map;
 import java.util.Set;
 
 import org.json.JSONArray;
-import org.json.JSONObject;
 
 import il.co.ilrd.DatabaseManagement.DatabaseManagement;
 import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpMethod;
-import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
 
@@ -244,9 +241,7 @@ public class HttpServer {
 
 		@Override
 		public void configureServerSocket(Selector selector) throws IOException {
-			serverSocket.bind(new InetSocketAddress(port));
-	    	serverSocket.configureBlocking(false);
-	    	serverSocket.register(selector, SelectionKey.OP_ACCEPT);
+			configureTcpServerSocket(selector, serverSocket, port);
 	    }
 
 		@Override
@@ -261,9 +256,7 @@ public class HttpServer {
 
 		@Override
 		public void sendMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {			
-			while(message.hasRemaining()) {
-				clientInfo.tcpPath.write(message);
-			}
+			sendTcpMessage(clientInfo, message);
 		}
 
 		@Override
@@ -279,16 +272,50 @@ public class HttpServer {
 		}
 	}
 	
+	private void configureTcpServerSocket(Selector selector, ServerSocketChannel serverSocket, int port) throws IOException{
+		serverSocket.bind(new InetSocketAddress(port));
+    	serverSocket.configureBlocking(false);
+    	serverSocket.register(selector, SelectionKey.OP_ACCEPT);
+	}
+	
+	private void sendTcpMessage(ClientInfo clientInfo,ByteBuffer message) throws IOException {
+		while(message.hasRemaining()) {
+			clientInfo.tcpPath.write(message);
+		}
+	}
 	
 	/**********************************************
 	 * HTTP Connection
 	 **********************************************/
-	private class HttpConnection extends TcpConnection {
+	private class HttpConnection implements Connection {
+		private int port; 
+		private ServerSocketChannel serverSocket;
 		
 		public HttpConnection(int port) throws IOException {
-			super(port);
+			serverSocket = ServerSocketChannel.open();
+			this.port = port;
+		}
+
+		@Override
+		public void configureServerSocket(Selector selector) throws IOException {
+			configureTcpServerSocket(selector, serverSocket, port);
+	    }
+
+		@Override
+		public Channel getChannel() {
+			return serverSocket;
 		}
 		
+		@Override
+		public int getPort() {
+			return port;
+		}
+
+		@Override
+		public void sendMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {			
+			sendTcpMessage(clientInfo, message);
+		}
+
 		@Override
 		public void receiveMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
 			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
@@ -425,21 +452,22 @@ public class HttpServer {
 	 * HTTP Protocol
 	 **********************************************/
 	private interface HttpProtocolKeysHandler {
-		public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList);
+		public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) throws Exception;
 	}
 	
 	private interface HTTPMethodHandler {
-		public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException;
-		public String chooseAction(ClientInfo clientInfo) throws SQLException;
+		public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception;
+		public String chooseAction(ClientInfo clientInfo) throws Exception;
 	}
 	
 	private class HttpProtocol<K, V> implements Protocol<K, V> {
 		private static final String URL = "jdbc:mysql://localhost:3306/";
 		private static final String USER_NAME = "root";
 		private static final String PASSWORD = "";
-		final String INVALID_HTTP_METHOD = "Invalid http method";
+		final String INVALID_HTTP_METHOD = "Invalid http method Exception";
 		final String MISSING_PARAMS = "Missing parameters";
-		final String NOT_IMPLEMENTED = "{\"errorMessage\":{\"not implemented\"}";
+		final String NOT_IMPLEMENTED = "Not implemented";
+		final String BAD_REQUEST = "Bad Request";
 
 		private Map<DatabaseKeys, HttpProtocolKeysHandler> iotMethodsMap = new HashMap<>();
 		private Map<String, DatabaseManagement> companyDatabases = new HashMap<>();
@@ -457,14 +485,14 @@ public class HttpServer {
 		
 		public class CreateCompanyDatabaseHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				return createAckMessage(databaseName, "database created");
 			}
 		}
 		
 		public class CreateTableHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					companyDatabases.get(databaseName).createTable(paramList.get(0).toString());
 				} catch (Exception e) {
@@ -477,7 +505,7 @@ public class HttpServer {
 		
 		public class DeleteTableHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					companyDatabases.get(databaseName).deleteTable(paramList.get(0).toString());
 				} catch (Exception e) {
@@ -490,7 +518,7 @@ public class HttpServer {
 		
 		public class CreateIotEventHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					companyDatabases.get(databaseName).createIOTEvent(paramList.get(0).toString());
 				} catch (Exception e) {
@@ -503,7 +531,7 @@ public class HttpServer {
 		
 		public class CreateRowHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					companyDatabases.get(databaseName).createRow(paramList.get(0).toString());
 				} catch (Exception e) {
@@ -516,7 +544,7 @@ public class HttpServer {
 		
 		public class ReadRowHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				List<Object> returnList;
 				try {
 					String tableName = (String)paramList.get(0);
@@ -533,7 +561,7 @@ public class HttpServer {
 		
 		public class ReadFieldByNameHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				Object returnValue;
 				try {
 					String tableName = (String)paramList.get(0);
@@ -551,7 +579,7 @@ public class HttpServer {
 		
 		public class ReadFieldByIndexHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				Object returnValue;
 				try {
 					String tableName = (String)paramList.get(0);
@@ -569,7 +597,7 @@ public class HttpServer {
 		
 		public class UpdateFieldByNameHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					String tableName = (String)paramList.get(0);
 					String primaryKeyColumnName = (String)paramList.get(1);
@@ -587,7 +615,7 @@ public class HttpServer {
 		
 		public class UpdateFieldByIndexHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					String tableName = (String)paramList.get(0);
 					String primaryKeyColumnName = (String)paramList.get(1);
@@ -605,7 +633,7 @@ public class HttpServer {
 		
 		public class DeleteRowHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				try {
 					String tableName = (String)paramList.get(0);
 					String primaryKeyColumnName = (String)paramList.get(1);
@@ -621,7 +649,7 @@ public class HttpServer {
 		
 		public class InvalidKeyHandler implements HttpProtocolKeysHandler {
 			@Override
-			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList) {
+			public DatabaseManagementMessage apply(ClientInfo clientInfo, String databaseName ,List<Object> paramList)  throws Exception{
 				return createErrorMessage(databaseName, "invalid key");
 			}
 		}
@@ -632,12 +660,11 @@ public class HttpServer {
 			try {
 				openMessage(httpMessage, clientInfo);
 			} catch (Exception e) {
-				String json = createJsonString(DatabaseKeys.ERROR_MESSAGE, "openMessage" + e.toString());
-				sendMessage(HttpStatusCode.BAD_REQUEST, json, clientInfo);
+				sendMessage(HttpStatusCode.BAD_REQUEST, JsonResponses.BAD_REQUEST.getResponse(), clientInfo);
 			}
 		}
 		
-		private void openMessage(HTTPMessage httpMessage, ClientInfo clientInfo) throws SQLException {
+		private void openMessage(HTTPMessage httpMessage, ClientInfo clientInfo) throws Exception {
 			if (MessageParser.isOptions(httpMessage.getData())) {
 				httpMethodsHandlersMap.get(HttpMethod.OPTIONS).handleMessage(clientInfo, null);
 			} else {
@@ -647,28 +674,33 @@ public class HttpServer {
 			}
 		}
 
-		private void createDatabaseIfNotInMap(String databaseName) throws SQLException {
+		private void createDatabaseIfNotInMap(String databaseName) throws Exception {
 			if(null == 	companyDatabases.get(databaseName)) {
-				DatabaseManagement dbManager = new DatabaseManagement(URL, USER_NAME, PASSWORD, databaseName);
+				DatabaseManagement dbManager = null;
+				try {
+					dbManager = new DatabaseManagement(URL, USER_NAME, PASSWORD, databaseName);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				companyDatabases.put(databaseName, dbManager);
 			}
 		}
 		
-		private DatabaseManagementMessage createErrorMessage(String databaseName, Object exception) {
+		private DatabaseManagementMessage createErrorMessage(String databaseName, Object exception) throws Exception {
 			List<Object> errorDescription = new ArrayList<>();
 			errorDescription.add(exception);
 			
 			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ERROR_MESSAGE), errorDescription);
 		}
 	
-		private DatabaseManagementMessage createAckMessage(String databaseName, Object value) {
+		private DatabaseManagementMessage createAckMessage(String databaseName, Object value) throws Exception {
 			List<Object> returnList = new ArrayList<>();
 			returnList.add(value);
 			
 			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), returnList);
 		}
 		
-		private DatabaseManagementMessage createAckMessage(String databaseName, List<Object> returnList) {
+		private DatabaseManagementMessage createAckMessage(String databaseName, List<Object> returnList) throws Exception {
 			return new DatabaseManagementMessage(new ActionTypeKey(databaseName, DatabaseKeys.ACK_MESSAGE), returnList);
 		}
 		
@@ -686,7 +718,7 @@ public class HttpServer {
 			Map<String, String> header = new HashMap<>();
 			header.put("Connection", "close");
 			header.put("Connection-Type", "application/json");
-			header.put("Allow", "[GET, POST, PUT, DELETE]");
+			header.put("Allow", "[GET, POST, PUT, DELETE, OPTIONS]");
 			
 			return header;
 		}
@@ -739,19 +771,15 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpGetMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
 				String json = chooseAction(clientInfo);
-				try {
-					processResponseMsg(json, HttpStatusCode.OK, clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+				processResponseMsg(json, HttpStatusCode.OK, clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				if(null == parser.getDatabaseMethod()) {
-					return createJsonString(DatabaseKeys.ERROR_MESSAGE, INVALID_HTTP_METHOD);
+					return createJsonString(DatabaseKeys.ERROR_MESSAGE, HttpStatusCode.BAD_REQUEST.getDescription());
 				} else {
 					switch(parser.getDatabaseMethod()) {
 						case READ_ROW:
@@ -765,7 +793,7 @@ public class HttpServer {
 					}
 				}
 			}
-			private String readRow(ClientInfo clientInfo, DatabaseKeys iotMethod) throws SQLException {
+			private String readRow(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PK_NAME.asString()));
@@ -774,7 +802,7 @@ public class HttpServer {
     			return getResponseJsonString(clientInfo, iotMethod, paramList);
 			}	
 			
-			private String readFieldByName(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String readFieldByName(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PK_NAME.asString()));
@@ -784,7 +812,7 @@ public class HttpServer {
     			return getResponseJsonString(clientInfo, iotMethod, paramList);
 			}
 			
-			private String readFieldByIndex(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String readFieldByIndex(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PK_NAME.asString()));
@@ -800,19 +828,15 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpPostMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
 				String json = chooseAction(clientInfo);
-				try {
-					processResponseMsg(json, HttpStatusCode.CREATED, clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+				processResponseMsg(json, HttpStatusCode.CREATED, clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception{
 				if(null == parser.getDatabaseMethod()) {
-					return createJsonString(DatabaseKeys.ERROR_MESSAGE, INVALID_HTTP_METHOD);
+					return createJsonString(DatabaseKeys.ERROR_MESSAGE, HttpStatusCode.BAD_REQUEST.getDescription());
 				} else {
 					switch(parser.getDatabaseMethod()) {
 						case CREATE_TABLE:
@@ -827,14 +851,14 @@ public class HttpServer {
 				}
 			}
 			
-			private String createTable(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String createTable(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
     			paramList.add(0, parser.get(JsonRequestKeys.SQL_COMMAND.asString()));
 
     			return getResponseJsonString(clientInfo, iotMethod, paramList);
 			}
 
-			private String createRow(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String createRow(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
     			paramList.add(0, parser.get(JsonRequestKeys.SQL_COMMAND.asString()));
 
@@ -842,7 +866,7 @@ public class HttpServer {
 
 			}
 
-			private String createIotEvent(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String createIotEvent(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
     			paramList.add(0, parser.get(JsonRequestKeys.RAW_DATA.asString()));
 
@@ -855,19 +879,15 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpPutMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
 				String json = chooseAction(clientInfo);
-				try {
-					processResponseMsg(json, HttpStatusCode.OK, clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+				processResponseMsg(json, HttpStatusCode.OK, clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				if(null == parser.getDatabaseMethod()) {
-					return createJsonString(DatabaseKeys.ERROR_MESSAGE, INVALID_HTTP_METHOD);
+					return createJsonString(DatabaseKeys.ERROR_MESSAGE, HttpStatusCode.BAD_REQUEST.getDescription());
 				} else {
 					switch(parser.getDatabaseMethod()) {
 						case UPDATE_FIELD_BY_NAME:
@@ -880,7 +900,7 @@ public class HttpServer {
 				}
 			}
 			
-			private String updateFieldByName(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String updateFieldByName(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PRIMARY_KEY_NAME.asString()));
@@ -891,7 +911,7 @@ public class HttpServer {
     			return getResponseJsonString(clientInfo, iotMethod, paramList);
 			}
 
-			private String updateFieldByIndex(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String updateFieldByIndex(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PRIMARY_KEY_NAME.asString()));
@@ -908,19 +928,15 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpDeleteMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
 				String json = chooseAction(clientInfo);
-				try {
-					processResponseMsg(json, HttpStatusCode.OK, clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+				processResponseMsg(json, HttpStatusCode.OK, clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				if(null == parser.getDatabaseMethod()) {
-					return createJsonString(DatabaseKeys.ERROR_MESSAGE, INVALID_HTTP_METHOD);
+					return createJsonString(DatabaseKeys.ERROR_MESSAGE, HttpStatusCode.BAD_REQUEST.getDescription());
 				} else {
 					switch(parser.getDatabaseMethod()) {
 						case DELETE_TABLE:
@@ -932,13 +948,13 @@ public class HttpServer {
 					}
 				}
 			}
-			private String createTable(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String createTable(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
             	paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
             	
             	return getResponseJsonString(clientInfo, iotMethod, paramList);
 			}
-			private String createRow(ClientInfo clientInfo, DatabaseKeys iotMethod) {
+			private String createRow(ClientInfo clientInfo, DatabaseKeys iotMethod) throws Exception {
 				List<Object> paramList = new ArrayList<>();
 				paramList.add(0, parser.get(UrlKeys.TABLENAME.asString()));
     			paramList.add(1, parser.get(JsonRequestKeys.PRIMARY_KEY_NAME.asString()));
@@ -953,7 +969,7 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpOptionsMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
 				String json = "";
 				String response = HttpBuilder.createHttpResponseMessage(HttpVersion.HTTP_1_1,
 																		HttpStatusCode.OK,
@@ -961,15 +977,11 @@ public class HttpServer {
 																		json);
 
 				ByteBuffer buffer = ByteBuffer.wrap(response.getBytes(Charset.forName("UTF-8")));
-				try {
-					clientInfo.tcpPath.write(buffer);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+				clientInfo.tcpPath.write(buffer);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				return null;
 			}
 		}
@@ -979,16 +991,12 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpTraceMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
-				try {
-					sendNotImplementedResponse(clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
+				sendNotImplementedResponse(clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				return null;
 			}
 		}
@@ -998,16 +1006,12 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpPatchMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
-				try {
-					sendNotImplementedResponse(clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
+				sendNotImplementedResponse(clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				return null;
 			}
 		}
@@ -1017,16 +1021,12 @@ public class HttpServer {
 		 **********************************************/
 		private class HttpHeadMethodHandler implements HTTPMethodHandler {
 			@Override
-			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws SQLException {
-				try {
-					sendNotImplementedResponse(clientInfo);
-				} catch (IOException e) {
-					throw new SQLException(e);
-				}
+			public void handleMessage(ClientInfo clientInfo, HTTPMessage httpMessage) throws Exception {
+				sendNotImplementedResponse(clientInfo);
 			}
 
 			@Override
-			public String chooseAction(ClientInfo clientInfo) throws SQLException {
+			public String chooseAction(ClientInfo clientInfo) throws Exception {
 				return null;
 			}
 		}
@@ -1035,22 +1035,18 @@ public class HttpServer {
 		 * Http Protocol implementation methods
 		 **********************************************/
 		
-		private void sendNotImplementedResponse(ClientInfo clientInfo) throws IOException {
+		private void sendNotImplementedResponse(ClientInfo clientInfo) throws Exception {
 			String json = createJsonString(DatabaseKeys.ERROR_MESSAGE, NOT_IMPLEMENTED);
 			sendMessage(HttpStatusCode.NOT_IMPLEMENTED, json, clientInfo);
 		}
 
-		private String getResponseJsonString(ClientInfo clientInfo, DatabaseKeys iotMethod, List<Object> paramList) {
+		private String getResponseJsonString(ClientInfo clientInfo, DatabaseKeys iotMethod, List<Object> paramList) throws Exception {
 			if (paramList.isEmpty()) {
 				return createJsonString(DatabaseKeys.ERROR_MESSAGE, MISSING_PARAMS);
 			}
 			
-			DatabaseManagementMessage replyToClient;
-			try {
-				replyToClient = iotMethodsMap.get(iotMethod).apply(clientInfo, parser.get(UrlKeys.DATABASE_NAME.asString()) ,paramList);
-			} catch (IndexOutOfBoundsException | ClassCastException e) {
-				replyToClient = createErrorMessage(parser.get(UrlKeys.DATABASE_NAME.asString()), e);
-			}
+			DatabaseManagementMessage replyToClient = 
+					 iotMethodsMap.get(iotMethod).apply(clientInfo, parser.get(UrlKeys.DATABASE_NAME.asString()) ,paramList);
 
 			return createJsonString(iotMethod, replyToClient);
 		}
@@ -1065,7 +1061,7 @@ public class HttpServer {
 			return completeResponse(json, array);
 		}
 		
-		private String createJsonString(DatabaseKeys iotMethod, String message) {
+		private String createJsonString(DatabaseKeys iotMethod, String message) throws Exception {
 			String json = responsesMap.get(iotMethod).getResponse();			
 			JSONArray array = new JSONArray();
 			array.put(message);
@@ -1073,16 +1069,21 @@ public class HttpServer {
 			return completeResponse(json, array);
 		}
 		
-		private void processResponseMsg(String json, HttpStatusCode onSuccess, ClientInfo clientInfo) throws IOException {
-			if (json.contains(INVALID_HTTP_METHOD)) {
-				sendMessage(HttpStatusCode.BAD_REQUEST, json, clientInfo);
+		private void processResponseMsg(String json, HttpStatusCode onSuccess, ClientInfo clientInfo) throws Exception {
+			if (json.contains("Exception")) {
+				sendMessage(HttpStatusCode.BAD_REQUEST, createJsonString(DatabaseKeys.ERROR_MESSAGE, BAD_REQUEST), clientInfo);
 			} else {
 				sendMessage(onSuccess, json, clientInfo);
-			}			
+			}
 		}
 		
 		private void sendMessage(HttpStatusCode statusCode, String json, ClientInfo clientInfo) throws IOException {
-			String response = HttpBuilder.createHttpResponseMessage(parser.getVersion(),
+			HttpVersion version = HttpVersion.HTTP_1_0;
+			if(null != parser) {
+				version = parser.getVersion();
+			}
+			
+			String response = HttpBuilder.createHttpResponseMessage(version,
 																	statusCode,
 																	createHeader(json.length()),
 																	json);

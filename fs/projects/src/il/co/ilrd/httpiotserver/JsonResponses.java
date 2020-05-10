@@ -17,9 +17,12 @@ public enum JsonResponses {
 	ACK_MESSAGE("{\"message\":"),
 	
 	OPTION(""),
-	TRACE("{\"errorMessage\":{\"not implemented\"}"),
-	PATCH("{\"errorMessage\":{\"not implemented\"}"),
-	HEAD("{\"errorMessage\":{\"not implemented\"}"),
+	TRACE("{\"errorMessage\":\"not implemented\"}"),
+	PATCH("{\"errorMessage\":\"not implemented\"}"),
+	HEAD("{\"errorMessage\":\"not implemented\"}"),
+	
+	BAD_REQUEST("{\"errorMessage\":\"Bad Request\"}"),
+
 	;
 	
     private String response;

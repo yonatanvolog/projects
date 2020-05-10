@@ -14,7 +14,7 @@ public class MessageParser {
 	private UrlParser urlParser;
 	private JSONObject jason;
 	
-	public MessageParser(String message) {
+	public MessageParser(String message) throws Exception {
 		httpParser = new HttpParser(message);
 		urlParser = new UrlParser(httpParser.getStartLine().getURL());
 		String body = httpParser.getBody().getBody();
