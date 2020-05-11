@@ -13,11 +13,7 @@ class UriParser {
 		} catch (Exception e) {
 			throw new BadRequestException();
 		}
-//		System.err.println("dbname?0" + tokens[0]);
-//		System.err.println("dbname?1" + tokens[1]);
-//		System.err.println("dbname?2" + tokens[2]);
-//
-//		
+	
 		return tokens[2];
 	}
 	
@@ -29,12 +25,7 @@ class UriParser {
 		} catch (Exception e) {
 			throw new BadRequestException();
 		}
-//		System.err.println("tablename?0" + tokens[0]);
-//		System.err.println("tablename?1" + tokens[1]);
-//		System.err.println("tablename?2" + tokens[2]);
-//		System.err.println("tablename?3" + tokens[3]);
-//
-//		
+
 		return tokens[3];
 	}
 
@@ -44,9 +35,10 @@ class UriParser {
 			String rawUri = uri.getRawQuery();
 			parametersMap = new HashMap<>();
 			String[] pairs = rawUri.split("&");
+			String[] pair;
 			for (String value : pairs) {
 				final String PAIR_DELIMITER = "=";					
-				String[] pair = value.split(PAIR_DELIMITER);
+				pair = value.split(PAIR_DELIMITER);
 				parametersMap.put(pair[0], pair[1]);
 			}
 		} catch (Exception e) {

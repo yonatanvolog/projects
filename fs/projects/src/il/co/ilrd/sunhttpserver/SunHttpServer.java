@@ -6,13 +6,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.sun.net.httpserver.Headers;
@@ -22,56 +21,66 @@ import com.sun.net.httpserver.HttpServer;
 
 import il.co.ilrd.DatabaseManagement.DatabaseManagement;
 import il.co.ilrd.http_message.HttpStatusCode;
-import il.co.ilrd.httpiotserver.DatabaseKeys;
 
-class BadRequestException extends RuntimeException {}
+class BadRequestException extends RuntimeException {
+	private static final long serialVersionUID = 1L;
+}
 
 public class SunHttpServer {
+	private HttpServer javaHttpServer;
+	
+	private Map<String, DatabaseManagement> companyDatabases = new HashMap<>();
 	
 	private static final String URL = "jdbc:mysql://localhost:3306/";
 	private static final String USER_NAME = "root";
 	private static final String PASSWORD = "";
 	
-	static final String PK_NAME = "pkName";
-	static final String PK_VALUE = "pkValue";
-	static final String COLUMN_NAME = "columnName";
-	static final String COLUMN_INDEX = "columnIndex";
-	static final String SQL_COMMAND = "sqlCommand";
-	static final String RAW_DATA = "rawData";
-	static final String PRIMARY_KEY_NAME = "primaryKeyName";
-	static final String PRIMARY_KEY_VALUE = "primaryKeyValue";
-	static final String NEW_VALUE = "newValue";
-	static final String TABLE_NAME = "tableName";
-
+	private static final String PK_NAME = "pkName";
+	private static final String PK_VALUE = "pkValue";
+	private static final String COLUMN_NAME = "columnName";
+	private static final String COLUMN_INDEX = "columnIndex";
+	private static final String SQL_COMMAND = "sqlCommand";
+	private static final String RAW_DATA = "rawData";
+	private static final String PRIMARY_KEY_NAME = "primaryKeyName";
+	private static final String PRIMARY_KEY_VALUE = "primaryKeyValue";
+	private static final String NEW_VALUE = "newValue";
 	
-	HttpServer javaHttpServer;
+	private static final String ROW_OPTIONS = "GET, POST, DELETE, OPTIONS";
+	private static final String FIELD_NAME_OPTIONS = "GET, PUT, OPTIONS";
+	private static final String FIELD_INDEX_OPTIONS = "GET, PUT, OPTIONS";
+	private static final String TABLE_OPTIONS = "POST, DELETE, OPTIONS";
+	private static final String IOT_EVENT_OPTIONS = "POST, OPTIONS";
+	private static final String ALL_OPTIONS = "GET, POST, PUT, DELETE, OPTIONS";
 
-	private Map<String, DatabaseManagement> companyDatabases = new HashMap<>();
-
+	private static final String MESSAGE = "message";
+	private static final String ERROR_MESSAGE = "errorMessage";
+	private static final String BAD_REQUEST = "bad request";
 	
-	Map<String, HttpHandler> rowHttpMethodsHandlersMap = new HashMap<>();
-	Map<String, HttpHandler> fieldNameHttpMethodsHandlersMap = new HashMap<>();
-	Map<String, HttpHandler> fieldIndexHttpMethodsHandlersMap = new HashMap<>();
-	Map<String, HttpHandler> tableHttpMethodsHandlersMap = new HashMap<>();
-	Map<String, HttpHandler> iotEventHttpMethodsHandlersMap = new HashMap<>();
-
 	public SunHttpServer(int portNumber) throws IOException {
 		javaHttpServer = HttpServer.create(new InetSocketAddress(portNumber), 0);
 		javaHttpServer.setExecutor(null);
-
+		
 		javaHttpServer.createContext("/row", new RowHandler());
 		javaHttpServer.createContext("/field_name", new FieldNameHandler());
 		javaHttpServer.createContext("/field_index", new FieldIndexHandler());
 		javaHttpServer.createContext("/table", new TableHandler());
 		javaHttpServer.createContext("/iotEvent", new IotEventHandler());
+		javaHttpServer.createContext("/", new AllOptions());
 	}
 	
 	public void start() {
 		javaHttpServer.start();
 	}
 	
+	/****************************
+	/row
+	****************************/
+
 	class RowHandler implements HttpHandler {
+		private Map<String, HttpHandler> rowHttpMethodsHandlersMap;
+
 		private RowHandler() {
+			rowHttpMethodsHandlersMap = new HashMap<>();
 	    	initRowHandlers();
 		}
 		
@@ -80,34 +89,27 @@ public class SunHttpServer {
 	    		rowHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
 	    	} catch (RuntimeException e) {
 	    		e.printStackTrace();
-				System.err.println("Bad request! 1");
+				String errJson = createJsonMessage(ERROR_MESSAGE, BAD_REQUEST);
+				sendJsonMessage(exchange, HttpStatusCode.BAD_REQUEST, errJson);
 			}
 	    }
 	    
 		private class ReadRow implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("int ReadRow");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				System.out.println("table: " + UriParser.getTableName(exchange.getRequestURI()));
-				System.out.println("PkName: " + UriParser.getQueryMap(exchange.getRequestURI()).get(PK_NAME));
-				System.out.println("PkValue: " + UriParser.getQueryMap(exchange.getRequestURI()).get(PK_VALUE));
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
-				String primaryKeyColumnName = UriParser.getQueryMap(exchange.getRequestURI()).get(PK_NAME);
-				Object primaryKeyValue =  UriParser.getQueryMap(exchange.getRequestURI()).get(PK_VALUE);
-
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
+				String primaryKeyColumnName = UriParser.getQueryMap(uri).get(PK_NAME);
+				Object primaryKeyValue =  UriParser.getQueryMap(uri).get(PK_VALUE);
 				List<Object> resultList = null;
-				
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					resultList = companyDatabases.get(databaseName).readRow(tableName, primaryKeyColumnName, primaryKeyValue);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
+				}		
 				String json = createJsonMessage("rowValues", resultList);
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
@@ -116,39 +118,30 @@ public class SunHttpServer {
 		private class CreateRow implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
-				System.out.println("in CreateRow");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
 				String databaseName = UriParser.getDbName(exchange.getRequestURI());
 				JSONObject jason = getJsonBody(exchange);
-				String sqlCommand = (String) jason.get(SQL_COMMAND);
-				
+				String sqlCommand = (String) jason.get(SQL_COMMAND);		
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createRow(sqlCommand);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
-				String json = createJsonMessage("message", "row created");
+				}	
+				String json = createJsonMessage(MESSAGE, "row created");
 				sendJsonMessage(exchange, HttpStatusCode.CREATED, json);
 			}
-			
 		}
 		
 		private class DeleteRow implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
-				System.out.println("in DeleteRow");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
 				JSONObject jason = getJsonBody(exchange);
 				String primaryKeyColumnName = (String) jason.get(PRIMARY_KEY_NAME);
-				Object primaryKeyValue =  (String) jason.get(PRIMARY_KEY_VALUE);
-								
+				Object primaryKeyValue =  (String) jason.get(PRIMARY_KEY_VALUE);				
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).deleteRow(tableName, primaryKeyColumnName, primaryKeyValue);
@@ -156,28 +149,17 @@ public class SunHttpServer {
 					e.printStackTrace();
 					throw new BadRequestException();
 				}
-				
-				String json = createJsonMessage("message", "row deleted");
+				String json = createJsonMessage(MESSAGE, "row deleted");
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
 		}
 		
-		private class RowOptions implements HttpHandler {//DOESNT WORK YET
+		private class RowOptions implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
-				try {
-				System.out.println("in RowOptions");
-				List<String> options = new ArrayList<>();
-				options.add("GET");
-				options.add("POST");
-				options.add("DELETE");
-				options.add("OPTIONS");
-				fillOptionsResponseHeaders(exchange, options);
+				Headers headers = exchange.getResponseHeaders();
+				headers.add("Allow", ROW_OPTIONS);
 				sendJsonMessage(exchange, HttpStatusCode.OK, null);
-				} catch (Exception e) {
-					// TODO: handle exception
-					e.printStackTrace();
-				}
 			}
 		}
 		
@@ -192,10 +174,15 @@ public class SunHttpServer {
 	    }		
 	}
 	
-	
+	/****************************
+	/field_name
+	****************************/
 	
 	class FieldNameHandler implements HttpHandler {
+		private Map<String, HttpHandler> fieldNameHttpMethodsHandlersMap;
+
 		private FieldNameHandler() {
+			fieldNameHttpMethodsHandlersMap = new HashMap<>();
 			initFieldNameHandlers();
 		}
 		
@@ -204,37 +191,28 @@ public class SunHttpServer {
 	    		fieldNameHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
 	    	} catch (RuntimeException e) {
 	    		e.printStackTrace();
-				System.err.println("Bad request! 1");
+				String errJson = createJsonMessage(ERROR_MESSAGE, BAD_REQUEST);
+				sendJsonMessage(exchange, HttpStatusCode.BAD_REQUEST, errJson);
 			}
 	    }
 	    
 		private class ReadFieldByName implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("int ReadFieldByName");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				System.out.println("table: " + UriParser.getTableName(exchange.getRequestURI()));
-				System.out.println("PkName: " + UriParser.getQueryMap(exchange.getRequestURI()).get(PK_NAME));
-				System.out.println("PkValue: " + UriParser.getQueryMap(exchange.getRequestURI()).get(PK_VALUE));
-				System.out.println("columnName: " + UriParser.getQueryMap(exchange.getRequestURI()).get(COLUMN_NAME));
-
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
-				String primaryKeyColumnName = UriParser.getQueryMap(exchange.getRequestURI()).get(PK_NAME);
-				Object primaryKeyValue =  UriParser.getQueryMap(exchange.getRequestURI()).get(PK_VALUE);
-				String columnName = UriParser.getQueryMap(exchange.getRequestURI()).get(COLUMN_NAME);
-
-				Object result = null;
-				
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
+				String primaryKeyColumnName = UriParser.getQueryMap(uri).get(PK_NAME);
+				Object primaryKeyValue =  UriParser.getQueryMap(uri).get(PK_VALUE);
+				String columnName = UriParser.getQueryMap(uri).get(COLUMN_NAME);
+				Object result = null;			
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					result = companyDatabases.get(databaseName).readField(tableName, primaryKeyColumnName, primaryKeyValue, columnName);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
+				}				
 				String json = createJsonMessage("fieldValue", (String)result);
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
@@ -243,38 +221,32 @@ public class SunHttpServer {
 		private class UpdateFieldByName implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("int UpdateFieldByName");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				System.out.println("table: " + UriParser.getTableName(exchange.getRequestURI()));
-				
-
-
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
 				JSONObject body = getJsonBody(exchange);
 				String primaryKeyColumnName = (String) body.get(PRIMARY_KEY_NAME);
 				Object primaryKeyValue = (String) body.get(PRIMARY_KEY_VALUE);
 				String columnName = (String) body.get(COLUMN_NAME); 
-				Object newValue = body.get(NEW_VALUE);
-				
+				Object newValue = body.get(NEW_VALUE);			
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).updateField(tableName, primaryKeyColumnName, primaryKeyValue, columnName, newValue);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
-				String json = createJsonMessage("message", "field updated");
+				}			
+				String json = createJsonMessage(MESSAGE, "field updated");
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
 		}
 		
-		private class FieldNameOptions implements HttpHandler {//DOESNT WORK YET
+		private class FieldNameOptions implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
-				
+				Headers headers = exchange.getResponseHeaders();
+				headers.add("Allow", FIELD_NAME_OPTIONS);
+				sendJsonMessage(exchange, HttpStatusCode.OK, null);
 			}
 		}
 		
@@ -288,8 +260,15 @@ public class SunHttpServer {
 		}
 	}
 	
+	/****************************
+	/field_index
+	****************************/
+	
 	class FieldIndexHandler implements HttpHandler {
+		private Map<String, HttpHandler> fieldIndexHttpMethodsHandlersMap;
+
 		private FieldIndexHandler() {
+			fieldIndexHttpMethodsHandlersMap = new HashMap<>();
 			initFieldIndexHandlers();
 		}
 		
@@ -298,38 +277,28 @@ public class SunHttpServer {
 	    		fieldIndexHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
 	    	} catch (RuntimeException e) {
 	    		e.printStackTrace();
-				System.err.println("Bad request! 1");
+				String errJson = createJsonMessage(ERROR_MESSAGE, BAD_REQUEST);
+				sendJsonMessage(exchange, HttpStatusCode.BAD_REQUEST, errJson);
 			}
 	    }
 	    
 		private class ReadFieldByIndex implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("int ReadFieldByName");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				System.out.println("table: " + UriParser.getTableName(exchange.getRequestURI()));
-
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
-				String primaryKeyColumnName = UriParser.getQueryMap(exchange.getRequestURI()).get(PK_NAME);
-				Object primaryKeyValue =  UriParser.getQueryMap(exchange.getRequestURI()).get(PK_VALUE);
-				Integer columnIndex = Integer.parseInt(UriParser.getQueryMap(exchange.getRequestURI()).get(COLUMN_INDEX));
-
-				
-				
-
-
-				Object result = null;
-				
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
+				String primaryKeyColumnName = UriParser.getQueryMap(uri).get(PK_NAME);
+				Object primaryKeyValue =  UriParser.getQueryMap(uri).get(PK_VALUE);
+				Integer columnIndex = Integer.parseInt(UriParser.getQueryMap(uri).get(COLUMN_INDEX));
+				Object result = null;			
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					result = companyDatabases.get(databaseName).readField(tableName, primaryKeyColumnName, primaryKeyValue, columnIndex);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
+				}			
 				String json = createJsonMessage("fieldValue", (String)result);
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
@@ -338,38 +307,32 @@ public class SunHttpServer {
 		private class UpdateFieldByIndex implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("int UpdateFieldByName");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				System.out.println("table: " + UriParser.getTableName(exchange.getRequestURI()));
-				
-
-
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);
 				JSONObject body = getJsonBody(exchange);
 				String primaryKeyColumnName = (String) body.get(PRIMARY_KEY_NAME);
 				Object primaryKeyValue = (String) body.get(PRIMARY_KEY_VALUE);
 				Integer columnIndex = Integer.parseInt((String)body.get(COLUMN_INDEX));
-				Object newValue = body.get(NEW_VALUE);
-				
+				Object newValue = body.get(NEW_VALUE);			
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).updateField(tableName, primaryKeyColumnName, primaryKeyValue, columnIndex, newValue);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
-				String json = createJsonMessage("message", "field updated");
+				}			
+				String json = createJsonMessage(MESSAGE, "field updated");
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
 		}
 		
-		private class FieldIndexOptions implements HttpHandler {//DOESNT WORK YET
+		private class FieldIndexOptions implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
-				
+				Headers headers = exchange.getResponseHeaders();
+				headers.add("Allow", FIELD_INDEX_OPTIONS);
+				sendJsonMessage(exchange, HttpStatusCode.OK, null);
 			}
 		}
 		
@@ -382,14 +345,16 @@ public class SunHttpServer {
 			fieldIndexHttpMethodsHandlersMap.put("HEAD", new NotImplemented());
 		}
 	}
-	
-	
-	
-	
-	
+
+	/****************************
+	/table
+	****************************/
 	
 	class TableHandler implements HttpHandler {
+		private Map<String, HttpHandler> tableHttpMethodsHandlersMap;
+
 		private TableHandler() {
+			tableHttpMethodsHandlersMap = new HashMap<>();
 			initTableHandlers();
 		}
 		
@@ -397,21 +362,18 @@ public class SunHttpServer {
 	    	try {
 	    		tableHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
 	    	} catch (RuntimeException e) {
-	    		e.printStackTrace();
-				System.err.println("Bad request! 1");
+	    		e.printStackTrace();			
+				String errJson = createJsonMessage(ERROR_MESSAGE, BAD_REQUEST);
+				sendJsonMessage(exchange, HttpStatusCode.BAD_REQUEST, errJson);
 			}
 	    }
 	    
 		private class CreateTable implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("in CreateTable");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
 				String databaseName = UriParser.getDbName(exchange.getRequestURI());
 				JSONObject jason = getJsonBody(exchange);
-				String sqlCommand = (String) jason.get(SQL_COMMAND);
-				
+				String sqlCommand = (String) jason.get(SQL_COMMAND);		
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createTable(sqlCommand);
@@ -420,7 +382,7 @@ public class SunHttpServer {
 					throw new BadRequestException();
 				}
 				
-				String json = createJsonMessage("message", "table created");
+				String json = createJsonMessage(MESSAGE, "table created");
 				sendJsonMessage(exchange, HttpStatusCode.CREATED, json);
 			}
 		}
@@ -428,34 +390,27 @@ public class SunHttpServer {
 		private class DeleteTable implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("in DeleteTable");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
-				String databaseName = UriParser.getDbName(exchange.getRequestURI());
-				String tableName = UriParser.getTableName(exchange.getRequestURI());
-				JSONObject jason = getJsonBody(exchange);
-				String bodyTableName = (String) jason.get(TABLE_NAME);
-							
-				if(!tableName.equals(bodyTableName)) {
-					throw new BadRequestException();
-				}
-				
+				URI uri = exchange.getRequestURI();
+				String databaseName = UriParser.getDbName(uri);
+				String tableName = UriParser.getTableName(uri);		
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).deleteTable(tableName);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
-				String json = createJsonMessage("message", "table deleted");
+				}			
+				String json = createJsonMessage(MESSAGE, "table deleted");
 				sendJsonMessage(exchange, HttpStatusCode.OK, json);
 			}
 		}
 		
-		private class TableOptions implements HttpHandler {//DOESNT WORK YET
+		private class TableOptions implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
+				Headers headers = exchange.getResponseHeaders();
+				headers.add("Allow", TABLE_OPTIONS);
+				sendJsonMessage(exchange, HttpStatusCode.OK, null);
 			}
 		}
 		
@@ -469,10 +424,15 @@ public class SunHttpServer {
 		}
 	}
 	
-	
+	/****************************
+	/iotEvent
+	****************************/
 	
 	class IotEventHandler implements HttpHandler {
+		private Map<String, HttpHandler> iotEventHttpMethodsHandlersMap;
+
 		private IotEventHandler() {
+			iotEventHttpMethodsHandlersMap = new HashMap<>();
 			initIotEventHandlers();
 		}
 		
@@ -481,37 +441,36 @@ public class SunHttpServer {
 	    		iotEventHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
 	    	} catch (RuntimeException e) {
 	    		e.printStackTrace();
-				System.err.println("Bad request! 1");
+				String errJson = createJsonMessage(ERROR_MESSAGE, BAD_REQUEST);
+				sendJsonMessage(exchange, HttpStatusCode.BAD_REQUEST, errJson);
 			}
 	    }
 	    
 		private class CreateIotEvent implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException, BadRequestException{
-				System.out.println("in CreateIotEvent");
-				System.out.println(exchange.getRequestURI());
-				System.out.println("dbname: " + UriParser.getDbName(exchange.getRequestURI()));
 				String databaseName = UriParser.getDbName(exchange.getRequestURI());
 				JSONObject jason = getJsonBody(exchange);
-				String rawData = (String) jason.get(RAW_DATA);
-				
+				String rawData = (String) jason.get(RAW_DATA);			
 				try {
 					createDatabaseIfNotInMap(databaseName);
 					companyDatabases.get(databaseName).createIOTEvent(rawData);
 				} catch (SQLException e) {
 					e.printStackTrace();
 					throw new BadRequestException();
-				}
-				
-				String json = createJsonMessage("message", "IOT event created");
+				}			
+				String json = createJsonMessage(MESSAGE, "IOT event created");
 				sendJsonMessage(exchange, HttpStatusCode.CREATED, json);
 			}
 		}
 
 		
-		private class IotEventOptions implements HttpHandler {//DOESNT WORK YET
+		private class IotEventOptions implements HttpHandler {
 			@Override
 			public void handle(HttpExchange exchange) throws IOException {
+				Headers headers = exchange.getResponseHeaders();
+				headers.add("Allow", IOT_EVENT_OPTIONS);
+				sendJsonMessage(exchange, HttpStatusCode.OK, null);
 			}
 		}
 		
@@ -524,25 +483,29 @@ public class SunHttpServer {
 		}
 	}
 	
-	
-	
-	
+	/****************************
+	/*********utilities
+	****************************/
 	
 	class NotImplemented implements HttpHandler {
 	    public void handle(HttpExchange exchange) throws IOException {
-			String json = createJsonMessage("errorMessage", "not implemented");
+			String json = createJsonMessage(ERROR_MESSAGE, "not implemented");
 			sendJsonMessage(exchange, HttpStatusCode.NOT_IMPLEMENTED, json);
 	    }
 	}
 	
-	
+	class AllOptions implements HttpHandler {
+	    public void handle(HttpExchange exchange) throws IOException {
+			Headers headers = exchange.getResponseHeaders();
+			headers.add("Allow", ALL_OPTIONS);
+			sendJsonMessage(exchange, HttpStatusCode.OK, null);
+	    }
+	}
 	
 	private JSONObject getJsonBody(HttpExchange exchange) throws IOException {
 		InputStream is = exchange.getRequestBody();
 		String body = getStringFromInputStream(is);
-		
-		System.out.println("json body recieved:\n" + body);
-		
+				
 		return new JSONObject(body);
 	}
 	
@@ -565,29 +528,16 @@ public class SunHttpServer {
 		}
 		exchange.sendResponseHeaders(statusCode.getCode(), jsonLength);
 	    OutputStream os = exchange.getResponseBody();
-	    os.write(jsonMessage.getBytes());
-	    os.write("".getBytes());
+	    if(null != jsonMessage) {
+	    	os.write(jsonMessage.getBytes());
+	    }
 	    os.close();
 	}
 	
 	private void fillResponseHeaders(HttpExchange exchange) {
-		Headers headers = exchange.getRequestHeaders();
-		List<String> list = new ArrayList<>();
-		list.add("application/json");
-		headers.put("Connection-Type", list);
-	}
-	
-	private void fillOptionsResponseHeaders(HttpExchange exchange, List<String> options) {
-		Headers headers = exchange.getRequestHeaders();
-		List<String> list = new ArrayList<>();
-		list.add("application/json");
-		headers.put("Connection-Type", list);
-		headers.put("Allow", options);
-	}
-	
-	
-	private void sendJsonMessage(HttpExchange exchange, String message, List<Object> paramList) {
-		
+		Headers headers = exchange.getResponseHeaders();
+		headers.add("Connection", "close");
+		headers.add("Connection-Type", "application/json");
 	}
 			
 	private String createJsonMessage(String message, List<Object> paramList) {
@@ -601,25 +551,6 @@ public class SunHttpServer {
 		return "{" + "\"" + leftMessage + "\"" +  ":" + "\"" + rightMessage + "\"" + "}";
 	}
 	
-	private Map<String, String> createHeader(int bodyLength) {
-		Map<String, String> header = new HashMap<>();
-		header.put("Connection", "close");
-		header.put("Connection-Type", "application/json");
-		header.put("Content-Length", String.valueOf(bodyLength));
-		
-		return header;
-	}
-	
-	private Map<String, String> createOptionsHeader(int bodyLength) {
-		Map<String, String> header = new HashMap<>();
-		header.put("Connection", "close");
-		header.put("Connection-Type", "application/json");
-		header.put("Allow", "[GET, POST, PUT, DELETE, OPTIONS]");
-		
-		return header;
-	}
-
-	
 	private void createDatabaseIfNotInMap(String databaseName) throws SQLException {
 		if(null == companyDatabases.get(databaseName)) {
 			DatabaseManagement dbManager = null;
@@ -628,19 +559,3 @@ public class SunHttpServer {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -40,7 +40,9 @@ public class Server {
 	
 	public void startServer() throws IOException, ClassNotFoundException {
 		new Thread(connectionHandler).start();
-		sunHttpServer.start();
+		if(null != sunHttpServer) {
+			sunHttpServer.start();			
+		}
 	}
 
 	public void stopServer() throws IOException {
