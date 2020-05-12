@@ -1,14 +1,17 @@
-package il.co.ilrd.sunhttpserver;
+package il.co.ilrd.gatewayserver;
 
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+class BadRequestException extends RuntimeException {
+	private static final long serialVersionUID = 1L;
+}
+
 class UriParser {
 	final static int DB_INDEX = 2;
 	final static int TABLE_INDEX = 3;
-	final static int NUM_OF_PARTS_IN_URI = 4; 
-
+	final static int NUM_OF_PARTS_IN_URI = 4;
 
 	public static String getDbName(URI uri) throws BadRequestException {
 		String tokens[];

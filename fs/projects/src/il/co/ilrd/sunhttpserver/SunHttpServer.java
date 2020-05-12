@@ -84,6 +84,7 @@ public class SunHttpServer {
 	    	initRowHandlers();
 		}
 		
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 	    	try {
 	    		rowHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
@@ -186,6 +187,7 @@ public class SunHttpServer {
 			initFieldNameHandlers();
 		}
 		
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 	    	try {
 	    		fieldNameHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
@@ -272,6 +274,7 @@ public class SunHttpServer {
 			initFieldIndexHandlers();
 		}
 		
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 	    	try {
 	    		fieldIndexHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
@@ -358,6 +361,7 @@ public class SunHttpServer {
 			initTableHandlers();
 		}
 		
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 	    	try {
 	    		tableHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
@@ -436,6 +440,7 @@ public class SunHttpServer {
 			initIotEventHandlers();
 		}
 		
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 	    	try {
 	    		iotEventHttpMethodsHandlersMap.get(exchange.getRequestMethod()).handle(exchange);
@@ -488,6 +493,7 @@ public class SunHttpServer {
 	****************************/
 	
 	class NotImplemented implements HttpHandler {
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 			String json = createJsonMessage(ERROR_MESSAGE, "not implemented");
 			sendJsonMessage(exchange, HttpStatusCode.NOT_IMPLEMENTED, json);
@@ -495,6 +501,7 @@ public class SunHttpServer {
 	}
 	
 	class AllOptions implements HttpHandler {
+		@Override
 	    public void handle(HttpExchange exchange) throws IOException {
 			Headers headers = exchange.getResponseHeaders();
 			headers.add("Allow", ALL_OPTIONS);
