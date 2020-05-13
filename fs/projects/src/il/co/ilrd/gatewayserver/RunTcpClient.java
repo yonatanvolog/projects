@@ -1,10 +1,9 @@
-package il.co.ilrd.gatewayserver;
-
+package il.co.ilrd.gatewayserver;import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.nio.charset.StandardCharsets;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
 
 public class RunTcpClient {
 
@@ -13,7 +12,7 @@ public class RunTcpClient {
 	}
 
 	private final String TEST_JSON = "{\"Commandkey\": \"COMPANY_REGISTRATION\",\r\n" + 
-									 "	\"Data\": \"test message from TCP client\"\r\n" + 
+									 "	\"Data\": \"TCP client data\"\r\n" + 
 									 "}\r\n";
 	private ByteBuffer buffer = ByteBuffer.allocate(4096);
 	private SocketChannel clientSocket = null;
@@ -30,8 +29,8 @@ public class RunTcpClient {
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}
-		receieveMessageFromServer();
 		sendMessage(TEST_JSON);
+		receieveMessageFromServer();
 	}
 
 	private void receieveMessageFromServer() throws IOException, ClassNotFoundException {
@@ -40,31 +39,35 @@ public class RunTcpClient {
 			@Override
 			public void run() {
 				ByteBuffer receiveBuffer = ByteBuffer.allocate(4096);
-				while (true) {
-					receiveBuffer.clear();
-					try {
-						clientSocket.read(receiveBuffer);
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						receivedMessage = (String) BytesUtil.toObject(receiveBuffer.array());
-					} catch (ClassNotFoundException | IOException e) {
-						e.printStackTrace();
-					}
-					System.out.println("TCP client recieved" + receivedMessage);
-
+				receiveBuffer.clear();  
+				try {
+					clientSocket.read(receiveBuffer);
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
+				receiveBuffer.flip();
+				String receivedMessage = bufferToString(receiveBuffer);
+				System.out.println("TCP client recieved: " + receivedMessage);
+
+
 			}
 		}).start();
 		;
 	}
 
 	private void sendMessage(String message) throws IOException {
-		byte[] serverMessageArray = BytesUtil.toByteArray(message);
-		buffer.clear();
-		buffer.put(serverMessageArray);
-		buffer.flip();
-		clientSocket.write(buffer);
+		clientSocket.write(stringToBuffer(message));
+	} 
+	
+	private String bufferToString(ByteBuffer dataBuffer) {
+		byte[] arr = new byte[dataBuffer.limit()];
+		dataBuffer.get(arr, 0, arr.length);
+		dataBuffer.clear(); 
+		
+		return new String(arr, StandardCharsets.UTF_8);
+	}
+		
+	private ByteBuffer stringToBuffer(String stringToProcess) {
+		return ByteBuffer.wrap(stringToProcess.getBytes());
 	}
 }
