@@ -45,30 +45,4 @@ public class RunUdpClient {
 	private ByteBuffer stringToBuffer(String stringToProcess) {
 		return ByteBuffer.wrap(stringToProcess.getBytes());
 	}
-	
-//	private void receieveMessageFromServer() throws IOException, ClassNotFoundException {
-//		new Thread(new Runnable() {
-//
-//			@Override
-//			public void run() {
-//				ByteBuffer receiveBuffer = ByteBuffer.allocate(4096);
-//				while (true) {
-//					receiveBuffer.clear();
-//					try {
-//						clientSocket.read(receiveBuffer);
-//					} catch (IOException e) {
-//						e.printStackTrace();
-//					}
-//					try {
-//						receivedMessage = (String) BytesUtil.toObject(receiveBuffer.array());
-//					} catch (ClassNotFoundException | IOException e) {
-//						e.printStackTrace();
-//					}
-//					System.out.println("TCP client recieved: " + receivedMessage);
-//
-//				}
-//			}
-//		}).start();
-//		;
-//	}
 }

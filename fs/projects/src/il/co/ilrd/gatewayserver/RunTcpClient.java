@@ -14,10 +14,7 @@ public class RunTcpClient {
 	private final String TEST_JSON = "{\"Commandkey\": \"COMPANY_REGISTRATION\",\r\n" + 
 									 "	\"Data\": \"TCP client data\"\r\n" + 
 									 "}\r\n";
-	private ByteBuffer buffer = ByteBuffer.allocate(4096);
 	private SocketChannel clientSocket = null;
-	private String receivedMessage = null;
-
 
 	public void startClient() throws Exception {
 		int portNumber = ServerPort.TCP_SERVER_PORT.getPort();

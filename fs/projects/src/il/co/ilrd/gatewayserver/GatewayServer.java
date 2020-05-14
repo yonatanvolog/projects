@@ -22,8 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Function;
+import java.util.concurrent.TimeUnit;
 
 import org.json.JSONObject;
 
@@ -35,7 +36,6 @@ import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
-import il.co.ilrd.httpiotserver.BytesUtil;
 
 //JSON:
 //{
@@ -46,43 +46,53 @@ import il.co.ilrd.httpiotserver.BytesUtil;
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
 	private static final int DEFAULT_NUM_OF_THREADS = 1;
-
+	private static final String COMMAND_KEY = "Commandkey";
+	private static final String DATA = "Data";
+	private static final int MAXIMUM_THREADS = 20;
+	
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;	
 	private ThreadPoolExecutor executor;
-	private CMDFactory cmdFactory;
+	//private CMDFactory cmdFactory;
+	private int numOfThreads;
 	private HighLevelHttpServer highLevelHttpServer;
-	Integer numOfThreads;
-//	private JsonToRunnableConvertor jsonToRunnableConvertor = new JsonToRunnableConverter();
+	private JsonToRunnableConverter jsonToRunnableConvertor;
 
-	public GatewayServer() throws IOException {
+	public GatewayServer(int numOfThreads) throws IOException {
+		this.numOfThreads = numOfThreads;
 		initExampleFactory();
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
+		jsonToRunnableConvertor = new JsonToRunnableConverter();
+	}
+	
+	public GatewayServer() throws IOException {
+		this(DEFAULT_NUM_OF_THREADS);
 	}
 	
 	public void setNumOfThreads(int numOfThreads) {
-		this.numOfThreads = numOfThreads;
+		executor.setCorePoolSize(numOfThreads);
 	}
 	
 	public void start() throws IOException, ClassNotFoundException {
-		if(null == numOfThreads) {
-			executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(DEFAULT_NUM_OF_THREADS);
-		} else {
-			executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numOfThreads);
-		}
-		
+		initExecutor();
 		new Thread(connectionHandler).start();
 		if(null != highLevelHttpServer) {
 			highLevelHttpServer.start();			
 		}
 	}
-
+	
+	private void initExecutor() {
+		executor = new ThreadPoolExecutor(
+					numOfThreads, 
+					MAXIMUM_THREADS, 
+					1, TimeUnit.SECONDS, 
+					new LinkedBlockingQueue<Runnable>());
+	}
+	
 	public void stop() throws IOException {
 		connectionHandler.stopConnections();
-		if(null != highLevelHttpServer) {
-			highLevelHttpServer.stop();			
-		}
+		executor.shutdown();
 		//connectionHandler.removeConnection()?
 	}
 
@@ -130,12 +140,6 @@ public class GatewayServer {
 
 	private void initExampleFactory() {
 		exampleFactory = new CMDFactory<>();
-
-//		Function<Object, FactoryCommand> companyRegCtor = (CompanyRegistration) -> new CompanyRegistration();
-//		Function<Object, FactoryCommand> productRegCtor = (ProductRegistration) -> new ProductRegistration();
-//		Function<Object, FactoryCommand> iotUserRegCtor = (IotUserRegistration) -> new IotUserRegistration();
-//		Function<Object, FactoryCommand> iotUpdateCtor = (IotUpdate) -> new IotUpdate();
-
 		exampleFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
 		exampleFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
 		exampleFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
@@ -146,76 +150,96 @@ public class GatewayServer {
 	private final String ACK = "response from server to - ";
 
 	public interface FactoryCommand {
-		public  void run(String data, ClientInfo clientInfo);
+		public  void run(String data, ClientInfo clientInfo) throws IOException;
 	}
 	
 	private class CompanyRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) {
-			//create proper json string
+		public void run(String data, ClientInfo clientInfo) throws IOException {
+			//we need to create proper JSON string
 			System.out.println(PREFIX + "company registration, data is:" + data);
 			String response = ACK + data;
 			System.out.println("sending from server:\n" + response);
-			try {
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class ProductRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) {
+		public void run(String data, ClientInfo clientInfo) throws IOException {
 			System.out.println(PREFIX + "product registration, data is:" + data);
 			String response = ACK + data;
-			try {
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class IotUserRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) {
+		public void run(String data, ClientInfo clientInfo) throws IOException {
 			System.out.println(PREFIX + "iot user registration, data is:" + data);
 			String response = ACK + data;
-			try {
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class IotUpdate implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) {
+		public void run(String data, ClientInfo clientInfo) throws IOException {
 			System.out.println(PREFIX + "iot update, data is:" + data);
 			String response = ACK + data;
-			try {
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-			} catch (IOException e) {
-				e.printStackTrace();
+			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
+		}
+	}
+
+	/**********************************************
+	 * ServerConnection Interface
+	 **********************************************/
+	interface ServerConnection {
+		public void initServerConnection(Selector selector) throws IOException;
+		public void start();
+		public void stop() throws IOException;
+		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException;
+		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException;
+		public Channel getChannel();
+		public int getPort();
+	}
+	
+	/**********************************************
+	 * Client info
+	 **********************************************/
+	private class ClientInfo {
+		private SocketChannel tcpPath;
+		private SocketAddress udpPath;
+		private ServerConnection connection;
+		private HttpExchange exchange;
+		
+		public ClientInfo(SocketAddress udpPath, ServerConnection connection) {
+			this.udpPath = udpPath;
+			this.connection = connection;
+		}
+		
+		public ClientInfo(SocketChannel tcpPath, ServerConnection connection) {
+			this.tcpPath = tcpPath;
+			this.connection = connection;
+		}
+		
+		public ClientInfo(HttpExchange exchange, ServerConnection connection) {
+			this.exchange = exchange;
+			this.connection = connection;
+		}
+		
+		public String toString() {
+			if(null != tcpPath) {
+				return tcpPath.toString();
 			}
+			return udpPath.toString();
 		}
 	}
 	
 	/**********************************************
-	 * Sun LowLevelHttpServer relation to server
-	 **********************************************/
-//	SunLowLevelHttpServer sunLowLevelHttpServer;
-//		
-//	public void addSunHttpConnection(int portNumber) throws IOException {
-//		sunLowLevelHttpServer = new SunLowLevelHttpServer(portNumber);
-//	}
-
-	/**********************************************
 	 * Connection Handler
 	 **********************************************/
-	private class ConnectionHandler implements Runnable{
+	private class ConnectionHandler implements Runnable {
     	private Selector selector;
 		private boolean toContinue;
 		private Map<Channel, ServerConnection> connectionsMap = new HashMap<>();
@@ -225,7 +249,6 @@ public class GatewayServer {
 		public ConnectionHandler() throws IOException {
 			tcpServersList = new ArrayList<>();
 			udpServersList = new ArrayList<>();
-
 			selector = Selector.open();
 		}
 		
@@ -248,7 +271,6 @@ public class GatewayServer {
 		                Channel currentChannel = key.channel();
 		 
 		                if(key.isValid() && key.isAcceptable()) {
-		                	System.out.println("in isAcceptable");
 		                	ServerSocketChannel tcpServer = (ServerSocketChannel) connectionsMap.get(currentChannel).getChannel();
 		                	SocketChannel tcpClient = tcpServer.accept();
 		                	
@@ -258,7 +280,6 @@ public class GatewayServer {
 		                }
 		                
 		                if(key.isValid() && key.isReadable()) {
-		                	System.out.println("in isReadable");
 		                	ServerConnection currentConnection = connectionsMap.get(currentChannel);
 	                		currentConnection.handleRequestMessage(currentChannel);
 	                	}
@@ -281,6 +302,10 @@ public class GatewayServer {
 				keyIter.channel().close();
 			}
 			selector.close();
+			
+			if(null != highLevelHttpServer) {				
+				highLevelHttpServer.stop();
+			}
 		}
 
 		private void addConnection(ServerConnection connection, List<ServerConnection> specificServerList) {
@@ -312,55 +337,60 @@ public class GatewayServer {
 	}
 	
 	/**********************************************
-	 * Client info
+	 * UDP Server
 	 **********************************************/
-	private class ClientInfo {
-		private SocketChannel tcpPath;
-		private SocketAddress udpPath;
-		private ServerConnection connection;
-		private HttpExchange exchange;
+	private class UdpServer implements ServerConnection {
+		private int port; 
+		private DatagramChannel serverSocket;		
 		
-		public ClientInfo(SocketAddress udpPath, ServerConnection connection) {
-			this.udpPath = udpPath;
-			this.connection = connection;
+		public UdpServer(int port) throws IOException {
+			serverSocket = DatagramChannel.open();
+			this.port = port;
 		}
-		
-		public ClientInfo(SocketChannel tcpPath, ServerConnection connection) {
-			this.tcpPath = tcpPath;
-			this.connection = connection;
-		}
-		
-		//might not need
-		public ClientInfo(HttpExchange exchange) {
-			this.exchange = exchange;
-			//this.connection = connection;
-		}
-		
-		public ClientInfo(HttpExchange exchange, ServerConnection connection) {
-			this.exchange = exchange;
-			this.connection = connection;
-		}
-		
-		public String toString() {
-			if(null != tcpPath) {
-				return tcpPath.toString();
-			}
-			return udpPath.toString();
-		}
-	}
 	
-	/**********************************************
-	 * ServerConnection Interface
-	 **********************************************/
-	interface ServerConnection {
-		public void start();
-		public void stop();
-		public void initServerConnection(Selector selector) throws IOException;
-		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException;
-		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException;
+		@Override
+		public void initServerConnection(Selector selector) throws IOException {
+	    	serverSocket.socket().bind(new InetSocketAddress(port));
+	    	serverSocket.configureBlocking(false);
+	    	serverSocket.register(selector, SelectionKey.OP_READ);
+	    }
 		
-		public Channel getChannel();
-		public int getPort();
+		@Override
+		public void start() {
+			// TODO Auto-generated method stub
+		}
+
+		@Override
+		public void stop() throws IOException {
+			serverSocket.close();
+		}
+		
+		@Override
+		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException { 
+			SocketAddress clientAddress = null;
+			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
+	    	while(null == clientAddress) {
+	    		clientAddress = serverSocket.receive(buffer);
+	    	}
+			
+			ClientInfo clientInfo = new ClientInfo((SocketAddress)clientAddress, this);
+			messageHandler.handleMessage(buffer, clientInfo);
+		}
+		
+		@Override
+		public void sendResponseMessage(ClientInfo client, ByteBuffer message) throws IOException {
+			serverSocket.send(message, client.udpPath);
+		}
+		
+		@Override
+		public Channel getChannel() {
+			return serverSocket;
+		}
+	
+		@Override
+		public int getPort() {
+			return port;
+		}		
 	}
 	
 	/**********************************************
@@ -383,13 +413,29 @@ public class GatewayServer {
 		@Override
 		public void start() {
 			// TODO Auto-generated method stub
-			
 		}
 
 		@Override
-		public void stop() {
-			// TODO Auto-generated method stub
+		public void stop() throws IOException {
+			serverSocket.close();
+		}
+		
+		@Override
+		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
+			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
 			
+			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
+				connectionHandler.closeAndRemoveClient(clientChannel);
+	        	System.out.println("TCP client has closed");
+	        } else {
+	        	ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
+	    		messageHandler.handleMessage(buffer, clientInfo);
+	        }
+		}
+		
+		@Override
+		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {			
+			sendTcpMessage(clientInfo, message);
 		}
 
 		@Override
@@ -400,37 +446,6 @@ public class GatewayServer {
 		@Override
 		public int getPort() {
 			return port;
-		}
-
-		@Override
-		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {			
-			sendTcpMessage(clientInfo, message);
-		}
-
-		@Override
-		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
-//			System.out.println("in TcpServer handleRequestMessage");
-//	        ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-//			
-//			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
-//	        	throw new IOException();
-//	        }
-//			
-//			ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
-//    		messageHandler.handleMessage(buffer, clientInfo);
-			
-			
-			System.out.println("in TcpServer handleRequestMessage");
-
-			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-			
-			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
-				connectionHandler.closeAndRemoveClient(clientChannel);
-	        	System.out.println("TCP client has closed");
-	        } else {
-	        	ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
-	    		messageHandler.handleMessage(buffer, clientInfo);
-	        }
 		}
 	}
 	
@@ -447,67 +462,6 @@ public class GatewayServer {
 	}
 	
 	/**********************************************
-	 * UDP Server
-	 **********************************************/
-	private class UdpServer implements ServerConnection {
-		private int port; 
-		private DatagramChannel serverSocket;		
-		
-		public UdpServer(int port) throws IOException {
-			serverSocket = DatagramChannel.open();
-			this.port = port;
-		}
-	
-		@Override
-		public void start() {
-			// TODO Auto-generated method stub
-			
-		}
-
-		@Override
-		public void stop() {
-			// TODO Auto-generated method stub
-			
-		}
-		
-		@Override
-		public Channel getChannel() {
-			return serverSocket;
-		}
-	
-		@Override
-		public int getPort() {
-			return port;
-		}
-		
-		@Override
-		public void sendResponseMessage(ClientInfo client, ByteBuffer message) throws IOException {
-			serverSocket.send(message, client.udpPath);
-		}
-		
-		@Override
-		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException { 
-			System.out.println("in UdpServer handleRequestMessage");
-
-			SocketAddress clientAddress = null;
-			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-	    	while(null == clientAddress) {
-	    		clientAddress = serverSocket.receive(buffer);
-	    	}
-			
-			ClientInfo clientInfo = new ClientInfo((SocketAddress)clientAddress, this);
-			messageHandler.handleMessage(buffer, clientInfo);
-		}
-		
-		@Override
-		public void initServerConnection(Selector selector) throws IOException {
-	    	serverSocket.socket().bind(new InetSocketAddress(port));
-	    	serverSocket.configureBlocking(false);
-	    	serverSocket.register(selector, SelectionKey.OP_READ);
-	    }
-	}
-	
-	/**********************************************
 	 * Low Level HTTP Server
 	 **********************************************/
 	private class LowLevelHttpServer implements ServerConnection {
@@ -520,15 +474,43 @@ public class GatewayServer {
 		}
 
 		@Override
+		public void initServerConnection(Selector selector) throws IOException {
+			initTcpServerConnection(selector, serverSocket, port);
+		}
+		
+		@Override
 		public void start() {
 			// TODO Auto-generated method stub
-			
 		}
 
 		@Override
-		public void stop() {
-			// TODO Auto-generated method stub
+		public void stop() throws IOException {
+			serverSocket.close();
+		}
+		
+		@Override
+		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
+			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
 			
+			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
+				connectionHandler.closeAndRemoveClient(clientChannel);
+	        	System.out.println("HTTP client has closed");
+	        } else {
+				ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
+				HttpParser parser = new HttpParser(bufferToString(buffer));				
+	    		messageHandler.handleMessage(stringToBuffer(parser.getBody().getBody()), clientInfo);
+	        }
+	    }		
+
+		@Override
+		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {
+			HttpVersion dummyVersion = HttpVersion.HTTP_1_0;
+			HttpStatusCode dummyStatusCode = HttpStatusCode.OK;	//can be OK/ CREATED/ BAD REQUEST
+			String dummyBody = bufferToString(message);			
+			Map<String, String> dummyHeaders = createHeader(dummyBody.length()); //what headers do we return?
+			String httpResponse = HttpBuilder.createHttpResponseMessage(dummyVersion, dummyStatusCode, dummyHeaders, dummyBody);
+			
+			sendTcpMessage(clientInfo, stringToBuffer(httpResponse));
 		}
 		
 		@Override
@@ -541,26 +523,6 @@ public class GatewayServer {
 			return port;
 		}
 
-		@Override
-		public void initServerConnection(Selector selector) throws IOException {
-			initTcpServerConnection(selector, serverSocket, port);
-		}
-
-		@Override
-		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {
-			HttpVersion dummyVersion = HttpVersion.HTTP_1_0;
-			HttpStatusCode dummyStatusCode = HttpStatusCode.OK;					//can be OK/ CREATED/ BAD REQUEST
-			String dummyBody = bufferToString(message);			
-			//String dummyBody = "{\"dummy1\": \"dummy2\"}";
-			Map<String, String> dummyHeaders = createHeader(dummyBody.length()); //what headers do we return?
-			
-			String httpResponse = HttpBuilder.createHttpResponseMessage(dummyVersion, dummyStatusCode, dummyHeaders, dummyBody);
-			System.out.println("response will be:\n" + httpResponse);
-			System.out.println("end of response***********");
-
-			sendTcpMessage(clientInfo, stringToBuffer(httpResponse));
-		}
-
 		private Map<String, String> createHeader(int bodyLength) {
 			Map<String, String> header = new HashMap<>();
 			header.put("Connection", "close");
@@ -569,29 +531,13 @@ public class GatewayServer {
 			
 			return header;
 		}
-		
-		@Override
-		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
-			System.out.println("in LowLevelHttpServer handleRequestMessage");
-
-			ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-			
-			if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
-				connectionHandler.closeAndRemoveClient(clientChannel);
-	        	System.out.println("HTTP client has closed");
-	        } else {
-				ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
-				HttpParser parser = new HttpParser(bufferToString(buffer));				
-	    		messageHandler.handleMessage(stringToBuffer(parser.getBody().getBody()), clientInfo);
-	        }
-	    }
 	}
 	
 	/**********************************************
 	 * High Level HTTP Server
 	 **********************************************/	
 	public class HighLevelHttpServer implements ServerConnection {
-		private HttpServer javaHttpServer;		
+		private HttpServer javaHttpServer;
 
 		public HighLevelHttpServer(int portNumber) throws IOException {
 			javaHttpServer = HttpServer.create(new InetSocketAddress(portNumber), 0);
@@ -601,55 +547,13 @@ public class GatewayServer {
 		}
 		
 		@Override
+		public void initServerConnection(Selector selector) throws IOException {
+			// TODO Auto-generated method stub
+		}
+		
+		@Override
 		public void start() {
 			javaHttpServer.start();
-		}
-
-		class RootHandler implements HttpHandler {
-
-			@Override
-			public void handle(HttpExchange exchange) throws IOException {
-				System.out.println("in HighLevelHttpServer handle");
-
-				ByteBuffer buffer = ByteBuffer.allocate(BUFFER_SIZE);
-				
-				String body = getStringFromInputStream(exchange.getRequestBody());
-				
-	    		try {
-					messageHandler.handleMessage(stringToBuffer(body), new ClientInfo(exchange, HighLevelHttpServer.this));
-				} catch (ClassNotFoundException | IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-				
-//				if(-1 == ((SocketChannel)clientChannel).read(buffer)) {
-//					connectionHandler.closeAndRemoveClient(clientChannel);
-//		        	System.out.println("HTTP client has closed");
-//		        } else {
-//					ClientInfo clientInfo = new ClientInfo((SocketChannel)clientChannel, this);
-//					HttpParser parser = new HttpParser(bufferToString(buffer));				
-//		    		messageHandler.handleMessage(stringToBuffer(parser.getBody().getBody()), clientInfo);
-//		        }
-			}
-		}
-		
-		private JSONObject getJsonBody(HttpExchange exchange) throws IOException {
-			InputStream is = exchange.getRequestBody();
-			String body = getStringFromInputStream(is);
-					
-			return new JSONObject(body);
-		}
-		
-		private String getStringFromInputStream(InputStream inputStream) throws IOException {
-			BufferedInputStream bis = new BufferedInputStream(inputStream);
-			ByteArrayOutputStream buf = new ByteArrayOutputStream();
-			int result = bis.read();
-			while(result != -1) {
-			    buf.write((byte) result);
-			    result = bis.read();
-			}
-			return buf.toString("UTF-8");
 		}
 
 		@Override
@@ -658,17 +562,33 @@ public class GatewayServer {
 		}
 
 		@Override
-		public void initServerConnection(Selector selector) throws IOException {
-			// TODO Auto-generated method stub
-			
-		}
-
-		@Override
 		public void handleRequestMessage(Channel clientChannel) throws IOException, ClassNotFoundException {
 			// TODO Auto-generated method stub
-			
 		}
-
+		
+		class RootHandler implements HttpHandler {
+			@Override
+			public void handle(HttpExchange exchange) throws IOException {				
+				String body = getStringFromInputStream(exchange.getRequestBody());
+	    		try {
+					messageHandler.handleMessage(stringToBuffer(body), new ClientInfo(exchange, HighLevelHttpServer.this));
+				} catch (ClassNotFoundException | IOException e) {
+					throw new IOException(e);
+				}
+			}
+			
+			private String getStringFromInputStream(InputStream inputStream) throws IOException {
+				BufferedInputStream bis = new BufferedInputStream(inputStream);
+				ByteArrayOutputStream buf = new ByteArrayOutputStream();
+				int result = bis.read();
+				while(result != -1) {
+				    buf.write((byte) result);
+				    result = bis.read();
+				}
+				return buf.toString("UTF-8");
+			}
+		}
+		
 		@Override
 		public void sendResponseMessage(ClientInfo clientInfo, ByteBuffer message) throws IOException {
 			HttpStatusCode dummyStatusCode = HttpStatusCode.OK;
@@ -690,14 +610,12 @@ public class GatewayServer {
 
 		@Override
 		public Channel getChannel() {
-			// TODO Auto-generated method stub
 			return null;
 		}
 
 		@Override
 		public int getPort() {
-			// TODO Auto-generated method stub
-			return 0;
+			return javaHttpServer.getAddress().getPort();
 		}
 	}
 	
@@ -717,69 +635,43 @@ public class GatewayServer {
 		
 		@Override
 		public void run() {
-			//go to cmd factory
-			//create the right command with the key
-			//execute created command with the data
-			
-			//this should run in a thread from thread pool
 			FactoryCommand command = (FactoryCommand) exampleFactory.create(commandKey, data);
-			command.run(data, clientInfo);
+			try {
+				command.run(data, clientInfo);
+			} catch (IOException e) {
+				throw new RuntimeException(e);
+			}
 		}
 	}
 	
 	private class JsonToRunnableConverter {
 		public Runnable convertToRunnable(JSONObject json, ClientInfo clientInfo) {
-			String commandKeyAsString = (String) json.get("Commandkey");
+			String commandKeyAsString = (String) json.get(COMMAND_KEY); //if fails, should we return exception to user?
 			CommandKey commandKey = findCommandKey(commandKeyAsString);
-			String data = (String) json.get("Data");
-			
+			String data = (String) json.get(DATA); //if fails, should we return exception to user?
 			Runnable runnable = new RunnableJsonRequest(commandKey, data, clientInfo);
 			
 			return runnable;	
 		}
+		
+		private CommandKey findCommandKey(String commandKey) {
+			for (CommandKey command : CommandKey.values()) {
+			    if(command.toString().equals(commandKey)) {
+			    	return command;
+			    }
+			}
+			return null;
+		}
 	}
 
-	private static JSONObject convertToJsonObject(String jsonAsString) {
-		JSONObject jsonObject = null;
-		try {
-			jsonObject = new JSONObject(jsonAsString);				
-		} catch (Exception e) {
-			//parsing of json message might fail
-			e.printStackTrace();
-		}
-		
-		return jsonObject;
-	}
-	
-	private static CommandKey findCommandKey(String commandKey) {
-		for (CommandKey command : CommandKey.values()) {
-		    if(command.toString().equals(commandKey)) {
-		    	return command;
-		    }
-		}
-		
-		return null;
-	}
-	
 	/***********************************************
 	 * Message Handler
 	 **********************************************/
-	private class MessageHandler {
-		//private Map<ProtocolType, Protocol> protocolMap = new HashMap<>();
-		
-		public MessageHandler() {
-			//addProtocol(ProtocolType.DATABASE_MANAGEMENT, new IOTProtocol<>());
-		}
-
-		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {
-			System.out.println("in MessageHandler handleMessage");
-			//printBuffer(message);
-			
-			JSONObject json = convertToJsonObject(bufferToString(message));
-			
-			//run via thread pool?
-			Runnable runnableJsonRequest = new JsonToRunnableConverter().convertToRunnable(json, currentConnection);
-			executor.submit(runnableJsonRequest); //do we need Future?
+	private class MessageHandler {		
+		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {	
+			JSONObject json = new JSONObject(bufferToString(message)); //if fails, should we return exception to user?
+			Runnable runnableJsonRequest = jsonToRunnableConvertor.convertToRunnable(json, currentConnection);
+			executor.submit(runnableJsonRequest); //do we need the returned Future?
 		}
 	}
 	
@@ -792,61 +684,7 @@ public class GatewayServer {
 		return new String(arr, StandardCharsets.UTF_8);
 	}
 	
-	//old version, might not need anymore
-//	private static String bufferToString(ByteBuffer dataBuffer) {
-//		try {
-//			return (String) BytesUtil.toObject(dataBuffer.array());
-//		} catch (ClassNotFoundException | IOException e1) {
-//			try {
-//				dataBuffer.clear();
-//				byte[] arr = new byte[dataBuffer.capacity()];
-//				dataBuffer.get(arr, 0, arr.length);
-//				dataBuffer.clear();
-//				
-//				return new String(arr, StandardCharsets.UTF_8);
-//			} catch (Exception e2) {
-//				e2.printStackTrace();
-//			}
-//		}
-//		
-//		return null;
-//	}
-	
-	
-	
-//	private static String bufferToString2(ByteBuffer dataBuffer) {
-//		dataBuffer.clear();
-//		byte[] arr = new byte[dataBuffer.capacity()];
-//		dataBuffer.get(arr, 0, arr.length);
-//		dataBuffer.clear();
-//		
-//		return new String(arr, StandardCharsets.UTF_8);
-//	}
-	
 	private static ByteBuffer stringToBuffer(String message) {
-			//works with tcp/udp client
-//		try {
-//			return ByteBuffer.wrap(BytesUtil.toByteArray(message));
-//		} catch (IOException e) {
-//			e.printStackTrace();
-//		}
-//		return null;
-		
-			//works with postman
-		
 		return ByteBuffer.wrap(message.getBytes(StandardCharsets.UTF_8));
-		//return ByteBuffer.wrap(message.getBytes());
-	}
-	
-	
-	
-	private static void printBuffer(ByteBuffer message) {
-		String messageAsString = null;
-		try {
-			messageAsString = (String) BytesUtil.toObject(message.array());
-		} catch (ClassNotFoundException | IOException e) {
-			e.printStackTrace();
-		}
-		System.out.println("message recieved is:\n" + messageAsString);
 	}
 }
