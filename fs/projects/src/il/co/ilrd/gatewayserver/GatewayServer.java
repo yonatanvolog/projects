@@ -271,6 +271,7 @@ public class GatewayServer {
 		                Channel currentChannel = key.channel();
 		 
 		                if(key.isValid() && key.isAcceptable()) {
+		                	System.err.println("is acceptable");
 		                	ServerSocketChannel tcpServer = (ServerSocketChannel) connectionsMap.get(currentChannel).getChannel();
 		                	SocketChannel tcpClient = tcpServer.accept();
 		                	
@@ -280,6 +281,7 @@ public class GatewayServer {
 		                }
 		                
 		                if(key.isValid() && key.isReadable()) {
+		                	System.err.println("is readable");
 		                	ServerConnection currentConnection = connectionsMap.get(currentChannel);
 	                		currentConnection.handleRequestMessage(currentChannel);
 	                	}

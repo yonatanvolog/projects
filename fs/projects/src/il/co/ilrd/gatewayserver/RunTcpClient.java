@@ -6,7 +6,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 public class RunTcpClient {
-
+	final String localHost = "172.20.20.3";
+	//final String localHost = "127.0.0.1";
+	
 	public static void main(String[] args) throws Exception {
 		new RunTcpClient().startClient();
 	}
@@ -21,8 +23,8 @@ public class RunTcpClient {
 		System.out.println("Connecting to server " + InetAddress.getLocalHost() + " in port " + portNumber);
 
 		try {
-			clientSocket = SocketChannel.open(new InetSocketAddress(InetAddress.getLocalHost(), portNumber));
-			//clientSocket = SocketChannel.open(new InetSocketAddress("172.20.20.3", portNumber));
+			//clientSocket = SocketChannel.open(new InetSocketAddress(InetAddress.getLocalHost(), portNumber));
+			clientSocket = SocketChannel.open(new InetSocketAddress(localHost, portNumber));
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}

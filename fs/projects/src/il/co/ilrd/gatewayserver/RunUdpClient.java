@@ -4,10 +4,14 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class RunUdpClient {
+	final String localHost = "172.20.20.3";
+	//final String localHost = "127.0.0.1";
+
 	public static void main(String[] args) throws Exception {
 		new RunUdpClient().startClient();
 	}
@@ -23,7 +27,8 @@ public class RunUdpClient {
 		//receieveMessageFromServer();
 		try (DatagramSocket socket = new DatagramSocket()){
 			byte[] buffer = TEST_JSON.getBytes();
-			packet = new DatagramPacket(buffer, buffer.length, InetAddress.getLocalHost(), portNumber);	
+			packet = new DatagramPacket(buffer, buffer.length, new InetSocketAddress(localHost, portNumber));	
+			//packet = new DatagramPacket(buffer, buffer.length, InetAddress.getLocalHost(), portNumber);	
 			socket.send(packet);
 			socket.receive(packet);			
 			String receivedMessage = new String(packet.getData(), 0, packet.getLength());
