@@ -177,18 +177,31 @@ public class DatabaseManagement {
 		statement = connection.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_UPDATABLE);
 	}
 	
-	private void executeSqlCommand(String sqlCommand) throws SQLException {
-		Objects.requireNonNull(sqlCommand);
-				
-		try {
-			connectToSQL();
-			statement.executeUpdate(sqlCommand);
-		} catch (SQLException e) {
-			closeResource();
-			throw e;
+	public void executeSqlCommand(String sqlCommands) throws SQLException {
+		Objects.requireNonNull(sqlCommands);
+		connectToSQL();
+		final String COMMAND_DELIMETER = ";";
+		String[] sqlCommandsArr = sqlCommands.split(COMMAND_DELIMETER);
+		connection.setAutoCommit(false);	
+		for (String command : sqlCommandsArr) {
+			statement.addBatch(command.trim());			
 		}
-		closeResource();
+		statement.executeBatch();
+		connection.commit();
 	}
+	
+//	private void executeSqlCommand(String sqlCommand) throws SQLException {
+//		Objects.requireNonNull(sqlCommand);
+//				
+//		try {
+//			connectToSQL();
+//			statement.executeUpdate(sqlCommand);
+//		} catch (SQLException e) {
+//			closeResource();
+//			throw e;
+//		}
+//		closeResource();
+//	}
 	
 	private void closeResource() throws SQLException {
 		if(null != statement) {

@@ -5,10 +5,18 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class CMDFactory<T, K, D> {
-	public Map<K, Function<D, ? extends T>> map = new HashMap<>();
+    private CMDFactory(){}
 	
-	public CMDFactory() {
-	}
+    private static class SingletonHolder {
+        private static final CMDFactory<?, ?, ?> INSTANCE = new CMDFactory<>();
+    }
+    
+    @SuppressWarnings("unchecked")
+	public static<T, K, D> CMDFactory<T, K, D> getInstance() {
+        return (CMDFactory<T, K, D>)SingletonHolder.INSTANCE;
+    }
+    
+	public Map<K, Function<D, ? extends T>> map = new HashMap<>();
 	
 	public void add(K key, Function<D, ? extends T> func) {
 		map.put(key, func);
@@ -21,5 +29,4 @@ public class CMDFactory<T, K, D> {
 	public T create(K key) {
 		return create(key, null);	
 	}
-	
 }

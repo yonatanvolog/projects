@@ -15,13 +15,13 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,16 +32,11 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import il.co.ilrd.DatabaseManagement.DatabaseManagement;
 import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
-
-//JSON:
-//{
-//	"Commandkey": keyValue,
-//	"Data": data (the data can be another json)
-//}
 
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
@@ -53,17 +48,17 @@ public class GatewayServer {
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;	
 	private ThreadPoolExecutor executor;
-	//private CMDFactory cmdFactory;
+	private CMDFactory<FactoryCommand, CommandKey, Object> cmdFactory;
 	private int numOfThreads;
 	private HighLevelHttpServer highLevelHttpServer;
-	private JsonToRunnableConverter jsonToRunnableConvertor;
+	private IotTaskCreator iotTaskCreator;
 
 	public GatewayServer(int numOfThreads) throws IOException {
 		this.numOfThreads = numOfThreads;
-		initExampleFactory();
+		initFactory();
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
-		jsonToRunnableConvertor = new JsonToRunnableConverter();
+		iotTaskCreator = new IotTaskCreator();
 	}
 	
 	public GatewayServer() throws IOException {
@@ -134,61 +129,108 @@ public class GatewayServer {
 	}
 	
 	/**********************************************
-	 * Example Factory
+	 * Factory
 	 **********************************************/
-	CMDFactory<FactoryCommand, CommandKey, Object> exampleFactory;
+	Map<String, DatabaseManagement> dbManagementMap;
 
-	private void initExampleFactory() {
-		exampleFactory = new CMDFactory<>();
-		exampleFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
-		exampleFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
-		exampleFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
-		exampleFactory.add(CommandKey.IOT_UPDATE, (IotUpdate) -> new IotUpdate());
+	private void initFactory() {
+		cmdFactory = CMDFactory.getInstance();
+		dbManagementMap = new HashMap<>();
+		cmdFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
+		cmdFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
+		cmdFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
+		cmdFactory.add(CommandKey.IOT_UPDATE, (IotUpdate) -> new IotUpdate());
 	}
 	
-	private final String PREFIX = "method executed according to - ";
-	private final String ACK = "response from server to - ";
+	private static final String URL = "jdbc:mysql://localhost:3306/";
+	private static final String USER_NAME = "root";
+	private static final String PASSWORD = "";
+	private static final String DB_NAME = "dbName";
+	private static final String SQL_COMMAND = "sqlCommand";
+	private static final String RAW_DATA = "rawData";
+	private static final String COMPANY_REGISTERED_RESPONSE = "company registered";
+	private static final String PRODUCT_REGISTRATION_RESPONSE = "product registered";
+	private static final String IOT_USER_REGISTRATION_RESPONSE = "IOT user registered";
+	private static final String IOT_UPDATE_RESPONSE = "IOT updated";
+	private static final String COMMAND_TYPE = "commandType";
+	private static final String ERROR = "error";
+	private static final String SYNTAX_ERROR = "syntax error";
+
 
 	public interface FactoryCommand {
-		public  void run(String data, ClientInfo clientInfo) throws IOException;
+		public  void run(JSONObject data, ClientInfo clientInfo) throws IOException, SQLException;
 	}
 	
 	private class CompanyRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) throws IOException {
-			//we need to create proper JSON string
-			System.out.println(PREFIX + "company registration, data is:" + data);
-			String response = ACK + data;
-			System.out.println("sending from server:\n" + response);
+		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
+			String dbName = (String) data.get(DB_NAME);
+			String sqlCommand = data.getString(SQL_COMMAND);
+			String response = "";
+			try {
+				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
+				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
+				response = createJsonResponse(COMMAND_TYPE, COMPANY_REGISTERED_RESPONSE);
+			} catch (SQLException e) {
+				response = createJsonResponse(ERROR, SYNTAX_ERROR);
+			}
 			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class ProductRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) throws IOException {
-			System.out.println(PREFIX + "product registration, data is:" + data);
-			String response = ACK + data;
+		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
+			String dbName = (String) data.get(DB_NAME);
+			String sqlCommand = data.getString(SQL_COMMAND);
+			String response = "";
+			try {
+				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
+				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
+				response = createJsonResponse(COMMAND_TYPE, PRODUCT_REGISTRATION_RESPONSE);
+			} catch (SQLException e) {
+				response = createJsonResponse(ERROR, SYNTAX_ERROR);
+			}
 			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class IotUserRegistration implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) throws IOException {
-			System.out.println(PREFIX + "iot user registration, data is:" + data);
-			String response = ACK + data;
+		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
+			String dbName = (String) data.get(DB_NAME);
+			String sqlCommand = data.getString(SQL_COMMAND);
+			String response = "";
+			try {
+				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
+				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
+				response = createJsonResponse(COMMAND_TYPE, IOT_USER_REGISTRATION_RESPONSE);
+			} catch (SQLException e) {
+				response = createJsonResponse(ERROR, SYNTAX_ERROR);
+			}
 			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
 	}
 	
 	private class IotUpdate implements FactoryCommand {
 		@Override
-		public void run(String data, ClientInfo clientInfo) throws IOException {
-			System.out.println(PREFIX + "iot update, data is:" + data);
-			String response = ACK + data;
+		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
+			String dbName = (String) data.get(DB_NAME);
+			String rawData = data.getString(RAW_DATA);
+			String response = "";
+			try {
+				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
+				dbManagementMap.get(dbName).createIOTEvent(rawData);
+				response = createJsonResponse(COMMAND_TYPE, IOT_UPDATE_RESPONSE);
+			} catch (SQLException e) {
+				response = createJsonResponse(ERROR, SYNTAX_ERROR);
+			}
 			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 		}
+	}
+	
+	private String createJsonResponse(String message1 ,String message2) {
+		return "{" + "\"" + message1 + "\"" +":" + "\"" + message2 + "\"" + "}";
 	}
 
 	/**********************************************
@@ -626,10 +668,10 @@ public class GatewayServer {
 	 **********************************************/
 	private class RunnableJsonRequest implements Runnable {
 		CommandKey commandKey;
-		String data;
+		JSONObject data;
 		ClientInfo clientInfo;
 		
-		public RunnableJsonRequest(CommandKey commandKey, String data, ClientInfo clientInfo) {
+		public RunnableJsonRequest(CommandKey commandKey, JSONObject data, ClientInfo clientInfo) {
 			this.commandKey = commandKey;
 			this.data = data;
 			this.clientInfo = clientInfo;
@@ -637,22 +679,28 @@ public class GatewayServer {
 		
 		@Override
 		public void run() {
-			FactoryCommand command = (FactoryCommand) exampleFactory.create(commandKey, data);
+			FactoryCommand command = (FactoryCommand) cmdFactory.create(commandKey, data);
 			try {
 				command.run(data, clientInfo);
-			} catch (IOException e) {
+			} catch (SQLException |IOException e) {
 				throw new RuntimeException(e);
 			}
 		}
 	}
 	
-	private class JsonToRunnableConverter {
-		public Runnable convertToRunnable(JSONObject json, ClientInfo clientInfo) {
-			String commandKeyAsString = (String) json.get(COMMAND_KEY); //if fails, should we return exception to user?
+	private class IotTaskCreator {
+		public Runnable createIotTask(JSONObject json, ClientInfo clientInfo) throws IOException {
+			String commandKeyAsString = null;
+			JSONObject dataJson = null;
+			try {
+				commandKeyAsString = (String) json.get(COMMAND_KEY);
+				dataJson = new JSONObject(json.get(DATA).toString());
+			} catch (Exception e) {
+				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(createJsonResponse(ERROR, SYNTAX_ERROR)));
+			}
 			CommandKey commandKey = findCommandKey(commandKeyAsString);
-			String data = (String) json.get(DATA); //if fails, should we return exception to user?
-			Runnable runnable = new RunnableJsonRequest(commandKey, data, clientInfo);
-			
+			Runnable runnable = new RunnableJsonRequest(commandKey, dataJson, clientInfo);
+
 			return runnable;	
 		}
 		
@@ -672,8 +720,9 @@ public class GatewayServer {
 	private class MessageHandler {		
 		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {	
 			JSONObject json = new JSONObject(bufferToString(message)); //if fails, should we return exception to user?
-			Runnable runnableJsonRequest = jsonToRunnableConvertor.convertToRunnable(json, currentConnection);
-			executor.submit(runnableJsonRequest); //do we need the returned Future?
+			System.err.println(json.toString());
+			Runnable runnableTask = iotTaskCreator.createIotTask(json, currentConnection);
+			executor.submit(runnableTask); //do we need the returned Future?
 		}
 	}
 	
