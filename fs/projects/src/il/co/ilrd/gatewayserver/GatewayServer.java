@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Constructor;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -37,6 +38,8 @@ import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
+import il.co.ilrd.jarloader.JarLoader;
+import il.co.ilrd.jarloader.SayHi;
 
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
@@ -131,15 +134,67 @@ public class GatewayServer {
 	/**********************************************
 	 * Factory
 	 **********************************************/
+	public interface FactoryCommand {
+		public String run(Object data, DatabaseManagementInterface databaseManagement);
+	}
+	
+	public interface FactoryCommandModifier {
+		public void addToFactory();
+	}
+	
+	public interface DatabaseManagementInterface {
+		public void createTable(String sqlCommand) throws SQLException;
+		public void createRow(String sqlCommand) throws SQLException;
+		public void createIOTEvent(String rawData) throws SQLException;
+	}
+	
+	private class FactoryCommandLoader {
+		String interfaceName = "FactoryCommandModifier";
+		String jarPath = "/home/yonatan/Yonatan-Vologdin/fs/projects/bin/AnimalSounds.jar";
+//		NewJar newJar;
+//		TestFactoryCommand testCommand;
+		
+		public FactoryCommandLoader() {}
+		
+		public FactoryCommandLoader(String interfaceName, String jarPath) {
+			this.interfaceName = interfaceName;
+			this.jarPath = jarPath;
+		}
+		
+		public void load() throws ClassNotFoundException, IOException, NoSuchMethodException, SecurityException {
+			List<Class<?>> loader = JarLoader.load(interfaceName, jarPath);
+			for (Class<?> currClass : loader) {
+				Constructor<?> constructorStr = currClass.getConstructor();
+//				SayHi currAnimal = (SayHi) constructorStr.newInstance();
+//				System.out.println("current animal goes: " + currAnimal.makeSound());
+			}
+		}
+		
+		public class NewJar implements FactoryCommandModifier {
+			@Override
+			public void addToFactory() {
+				// TODO Auto-generated method stub	
+			}
+		}
+		
+		public class TestFactoryCommand implements FactoryCommand {
+			@Override
+			public String run(Object data, DatabaseManagementInterface databaseManagement) {
+				// TODO Auto-generated method stub
+				return null;
+			}
+		}
+	}
+	
 	Map<String, DatabaseManagement> dbManagementMap;
 
 	private void initFactory() {
 		cmdFactory = CMDFactory.getInstance();
 		dbManagementMap = new HashMap<>();
-		cmdFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
-		cmdFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
-		cmdFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
-		cmdFactory.add(CommandKey.IOT_UPDATE, (IotUpdate) -> new IotUpdate());
+//		cmdFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
+//		cmdFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
+//		cmdFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
+//		cmdFactory.add(CommandKey.IOT_UPDATE, (IotUpdate) -> new IotUpdate());
 	}
 	
 	private static final String URL = "jdbc:mysql://localhost:3306/";
