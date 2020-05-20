@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class DatabaseManagement {
+import il.co.ilrd.gatewayserver.GatewayServer.DatabaseManagementInterface;
+
+public class DatabaseManagement implements DatabaseManagementInterface {
 	private final String databaseName;
 	private Connection connection;
 	private Statement statement;
@@ -184,6 +186,7 @@ public class DatabaseManagement {
 		String[] sqlCommandsArr = sqlCommands.split(COMMAND_DELIMETER);
 		connection.setAutoCommit(false);	
 		for (String command : sqlCommandsArr) {
+			System.out.println("commnad that will be executed: \n" + command.trim());
 			statement.addBatch(command.trim());			
 		}
 		statement.executeBatch();

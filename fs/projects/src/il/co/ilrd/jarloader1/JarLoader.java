@@ -1,4 +1,4 @@
-package il.co.ilrd.jarloader;
+package il.co.ilrd.jarloader1;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +33,7 @@ public class JarLoader {
 				for (Class<?> implementedInterface : interfacesImplmentedBycurrEntry) {
 					if(implementedInterface.getName().contains(interfaceName)) {
 						classesThatImplementInterface.add(currClass);
+						System.out.println("just loaded: " + currClass);
 						break;
 					}
 				}

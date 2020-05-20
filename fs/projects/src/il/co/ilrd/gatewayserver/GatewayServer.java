@@ -5,7 +5,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
@@ -38,8 +39,8 @@ import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
-import il.co.ilrd.jarloader.JarLoader;
-import il.co.ilrd.jarloader.SayHi;
+import il.co.ilrd.jarloader1.JarLoader;
+import il.co.ilrd.jarloader1.SayHi;
 
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
@@ -51,12 +52,12 @@ public class GatewayServer {
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;	
 	private ThreadPoolExecutor executor;
-	private CMDFactory<FactoryCommand, CommandKey, Object> cmdFactory;
+	private CMDFactory<FactoryCommand, String, Object> cmdFactory;
 	private int numOfThreads;
 	private HighLevelHttpServer highLevelHttpServer;
 	private IotTaskCreator iotTaskCreator;
 
-	public GatewayServer(int numOfThreads) throws IOException {
+	public GatewayServer(int numOfThreads) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, IOException {
 		this.numOfThreads = numOfThreads;
 		initFactory();
 		connectionHandler = new ConnectionHandler();
@@ -64,7 +65,7 @@ public class GatewayServer {
 		iotTaskCreator = new IotTaskCreator();
 	}
 	
-	public GatewayServer() throws IOException {
+	public GatewayServer() throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		this(DEFAULT_NUM_OF_THREADS);
 	}
 	
@@ -150,140 +151,38 @@ public class GatewayServer {
 	
 	private class FactoryCommandLoader {
 		String interfaceName = "FactoryCommandModifier";
-		String jarPath = "/home/yonatan/Yonatan-Vologdin/fs/projects/bin/AnimalSounds.jar";
-//		NewJar newJar;
-//		TestFactoryCommand testCommand;
-		
+		String jarPath = "/home/student/Yonatan-Vologdin/fs/projects/bin/FactoryCommands.jar";
+
 		public FactoryCommandLoader() {}
 		
 		public FactoryCommandLoader(String interfaceName, String jarPath) {
 			this.interfaceName = interfaceName;
 			this.jarPath = jarPath;
 		}
-		
-		public void load() throws ClassNotFoundException, IOException, NoSuchMethodException, SecurityException {
-			List<Class<?>> loader = JarLoader.load(interfaceName, jarPath);
-			for (Class<?> currClass : loader) {
-				Constructor<?> constructorStr = currClass.getConstructor();
-//				SayHi currAnimal = (SayHi) constructorStr.newInstance();
-//				System.out.println("current animal goes: " + currAnimal.makeSound());
-			}
-		}
-		
-		public class NewJar implements FactoryCommandModifier {
-			@Override
-			public void addToFactory() {
-				// TODO Auto-generated method stub	
-			}
-		}
-		
-		public class TestFactoryCommand implements FactoryCommand {
-			@Override
-			public String run(Object data, DatabaseManagementInterface databaseManagement) {
-				// TODO Auto-generated method stub
-				return null;
+
+		private void load() throws ClassNotFoundException, IOException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, InstantiationException {
+			for(Class<?> classIter : JarLoader.load(interfaceName, jarPath)) {
+				Method method = classIter.getMethod("addToFactory");
+				method.invoke(classIter.getConstructor().newInstance());
 			}
 		}
 	}
 	
 	Map<String, DatabaseManagement> dbManagementMap;
-
-	private void initFactory() {
+	FactoryCommandLoader commandLoader = new FactoryCommandLoader();
+	
+	private void initFactory() throws ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, IOException {
 		cmdFactory = CMDFactory.getInstance();
 		dbManagementMap = new HashMap<>();
-//		cmdFactory.add(CommandKey.COMPANY_REGISTRATION, (CompanyRegistration) -> new CompanyRegistration());
-//		cmdFactory.add(CommandKey.PRODUCT_REGISTRATION, (ProductRegistration) -> new ProductRegistration());
-//		cmdFactory.add(CommandKey.IOT_USER_REGISTRATION, (IotUserRegistration) -> new IotUserRegistration());
-//		cmdFactory.add(CommandKey.IOT_UPDATE, (IotUpdate) -> new IotUpdate());
+		commandLoader.load();
 	}
 	
 	private static final String URL = "jdbc:mysql://localhost:3306/";
 	private static final String USER_NAME = "root";
 	private static final String PASSWORD = "";
-	private static final String DB_NAME = "dbName";
-	private static final String SQL_COMMAND = "sqlCommand";
-	private static final String RAW_DATA = "rawData";
-	private static final String COMPANY_REGISTERED_RESPONSE = "company registered";
-	private static final String PRODUCT_REGISTRATION_RESPONSE = "product registered";
-	private static final String IOT_USER_REGISTRATION_RESPONSE = "IOT user registered";
-	private static final String IOT_UPDATE_RESPONSE = "IOT updated";
-	private static final String COMMAND_TYPE = "commandType";
 	private static final String ERROR = "error";
-	private static final String SYNTAX_ERROR = "syntax error";
+	private final static String JSON_ERROR = "invalid json";
 
-
-	public interface FactoryCommand {
-		public  void run(JSONObject data, ClientInfo clientInfo) throws IOException, SQLException;
-	}
-	
-	private class CompanyRegistration implements FactoryCommand {
-		@Override
-		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
-			String dbName = (String) data.get(DB_NAME);
-			String sqlCommand = data.getString(SQL_COMMAND);
-			String response = "";
-			try {
-				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
-				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
-				response = createJsonResponse(COMMAND_TYPE, COMPANY_REGISTERED_RESPONSE);
-			} catch (SQLException e) {
-				response = createJsonResponse(ERROR, SYNTAX_ERROR);
-			}
-			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-		}
-	}
-	
-	private class ProductRegistration implements FactoryCommand {
-		@Override
-		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
-			String dbName = (String) data.get(DB_NAME);
-			String sqlCommand = data.getString(SQL_COMMAND);
-			String response = "";
-			try {
-				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
-				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
-				response = createJsonResponse(COMMAND_TYPE, PRODUCT_REGISTRATION_RESPONSE);
-			} catch (SQLException e) {
-				response = createJsonResponse(ERROR, SYNTAX_ERROR);
-			}
-			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-		}
-	}
-	
-	private class IotUserRegistration implements FactoryCommand {
-		@Override
-		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
-			String dbName = (String) data.get(DB_NAME);
-			String sqlCommand = data.getString(SQL_COMMAND);
-			String response = "";
-			try {
-				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
-				dbManagementMap.get(dbName).executeSqlCommand(sqlCommand);
-				response = createJsonResponse(COMMAND_TYPE, IOT_USER_REGISTRATION_RESPONSE);
-			} catch (SQLException e) {
-				response = createJsonResponse(ERROR, SYNTAX_ERROR);
-			}
-			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-		}
-	}
-	
-	private class IotUpdate implements FactoryCommand {
-		@Override
-		public void run(JSONObject data, ClientInfo clientInfo) throws IOException {
-			String dbName = (String) data.get(DB_NAME);
-			String rawData = data.getString(RAW_DATA);
-			String response = "";
-			try {
-				dbManagementMap.put(dbName, new DatabaseManagement(URL, USER_NAME, PASSWORD, dbName)); //create if not exists
-				dbManagementMap.get(dbName).createIOTEvent(rawData);
-				response = createJsonResponse(COMMAND_TYPE, IOT_UPDATE_RESPONSE);
-			} catch (SQLException e) {
-				response = createJsonResponse(ERROR, SYNTAX_ERROR);
-			}
-			clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-		}
-	}
-	
 	private String createJsonResponse(String message1 ,String message2) {
 		return "{" + "\"" + message1 + "\"" +":" + "\"" + message2 + "\"" + "}";
 	}
@@ -722,24 +621,34 @@ public class GatewayServer {
 	 * Runnable Json
 	 **********************************************/
 	private class RunnableJsonRequest implements Runnable {
-		CommandKey commandKey;
+		String commandKey;
 		JSONObject data;
 		ClientInfo clientInfo;
 		
-		public RunnableJsonRequest(CommandKey commandKey, JSONObject data, ClientInfo clientInfo) {
+		public RunnableJsonRequest(String commandKey, JSONObject data, ClientInfo clientInfo) {
 			this.commandKey = commandKey;
 			this.data = data;
 			this.clientInfo = clientInfo;
 		}
 		
 		@Override
-		public void run() {
-			FactoryCommand command = (FactoryCommand) cmdFactory.create(commandKey, data);
+		public void run() {	
+			String dbName = data.getString("dbName");	
 			try {
-				command.run(data, clientInfo);
-			} catch (SQLException |IOException e) {
-				throw new RuntimeException(e);
+				addDbToMapIfNotFound(dbName);
+				String response = cmdFactory.create(commandKey, data).run(data, dbManagementMap.get(dbName));
+				System.out.println("The response would be" + response);
+				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
+		}
+	}
+	
+	private void addDbToMapIfNotFound(String databaseName) throws SQLException {
+		if(null == dbManagementMap.get(databaseName)) {
+			dbManagementMap.put(databaseName,
+					  new DatabaseManagement(URL, USER_NAME, PASSWORD, databaseName));
 		}
 	}
 	
@@ -751,21 +660,11 @@ public class GatewayServer {
 				commandKeyAsString = (String) json.get(COMMAND_KEY);
 				dataJson = new JSONObject(json.get(DATA).toString());
 			} catch (Exception e) {
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(createJsonResponse(ERROR, SYNTAX_ERROR)));
+				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(createJsonResponse(ERROR, JSON_ERROR)));
 			}
-			CommandKey commandKey = findCommandKey(commandKeyAsString);
-			Runnable runnable = new RunnableJsonRequest(commandKey, dataJson, clientInfo);
+			Runnable runnable = new RunnableJsonRequest(commandKeyAsString, dataJson, clientInfo);
 
 			return runnable;	
-		}
-		
-		private CommandKey findCommandKey(String commandKey) {
-			for (CommandKey command : CommandKey.values()) {
-			    if(command.toString().equals(commandKey)) {
-			    	return command;
-			    }
-			}
-			return null;
 		}
 	}
 
@@ -774,8 +673,14 @@ public class GatewayServer {
 	 **********************************************/
 	private class MessageHandler {		
 		private void handleMessage(ByteBuffer message, ClientInfo currentConnection) throws ClassNotFoundException, IOException {	
-			JSONObject json = new JSONObject(bufferToString(message)); //if fails, should we return exception to user?
-			System.err.println(json.toString());
+			JSONObject json = null;
+			try {				
+				json = new JSONObject(bufferToString(message));
+			} catch (Exception e) {
+				String response = createJsonResponse(ERROR, JSON_ERROR);
+				currentConnection.connection.sendResponseMessage(currentConnection, stringToBuffer(response));
+			}
+			System.err.println("Received body is: \n" + json);
 			Runnable runnableTask = iotTaskCreator.createIotTask(json, currentConnection);
 			executor.submit(runnableTask); //do we need the returned Future?
 		}
