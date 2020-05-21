@@ -35,12 +35,14 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import il.co.ilrd.DatabaseManagement.DatabaseManagement;
+import il.co.ilrd.filedatabase.CRUDFile;
 import il.co.ilrd.http_message.HttpBuilder;
 import il.co.ilrd.http_message.HttpParser;
 import il.co.ilrd.http_message.HttpStatusCode;
 import il.co.ilrd.http_message.HttpVersion;
 import il.co.ilrd.jarloader1.JarLoader;
 import il.co.ilrd.jarloader1.SayHi;
+import il.co.ilrd.observer.Callback;
 
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
@@ -48,6 +50,8 @@ public class GatewayServer {
 	private static final String COMMAND_KEY = "Commandkey";
 	private static final String DATA = "Data";
 	private static final int MAXIMUM_THREADS = 20;
+	private final static String jarDirPath = "/home/student/Yonatan-Vologdin/fs/projects/bin";
+
 	
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;	
@@ -56,13 +60,23 @@ public class GatewayServer {
 	private int numOfThreads;
 	private HighLevelHttpServer highLevelHttpServer;
 	private IotTaskCreator iotTaskCreator;
+	
+	private Map<String, DatabaseManagement> dbManagementMap;
+	private FactoryCommandLoader commandLoader;
+		
+	private static final String URL = "jdbc:mysql://localhost:3306/";
+	private static final String USER_NAME = "root";
+	private static final String PASSWORD = "";
+	private static final String ERROR = "error";
+	private final static String JSON_ERROR = "invalid json";
 
 	public GatewayServer(int numOfThreads) throws ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, IOException {
 		this.numOfThreads = numOfThreads;
-		initFactory();
 		connectionHandler = new ConnectionHandler();
 		messageHandler = new MessageHandler();
 		iotTaskCreator = new IotTaskCreator();
+		commandLoader = new FactoryCommandLoader();
+		loadCommandsIntoFactory();	
 	}
 	
 	public GatewayServer() throws IOException, ClassNotFoundException, NoSuchMethodException, SecurityException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
@@ -79,6 +93,7 @@ public class GatewayServer {
 		if(null != highLevelHttpServer) {
 			highLevelHttpServer.start();			
 		}
+		commandLoader.start();
 	}
 	
 	private void initExecutor() {
@@ -92,6 +107,7 @@ public class GatewayServer {
 	public void stop() throws IOException {
 		connectionHandler.stopConnections();
 		executor.shutdown();
+		commandLoader.stop();
 		//connectionHandler.removeConnection()?
 	}
 
@@ -121,7 +137,6 @@ public class GatewayServer {
 			highLevelHttpServer = new HighLevelHttpServer(portNumber);
 		}
 	}
-	
 	private boolean connectionCanBeCreated(int portNumber, List<ServerConnection> specificServerList) {
 		boolean answer = true;
 		for (ServerConnection connection : specificServerList) {
@@ -150,38 +165,46 @@ public class GatewayServer {
 	}
 	
 	private class FactoryCommandLoader {
+		JarMonitor jarDirMonitor;
 		String interfaceName = "FactoryCommandModifier";
-		String jarPath = "/home/student/Yonatan-Vologdin/fs/projects/bin/FactoryCommands.jar";
-
-		public FactoryCommandLoader() {}
 		
-		public FactoryCommandLoader(String interfaceName, String jarPath) {
-			this.interfaceName = interfaceName;
-			this.jarPath = jarPath;
+		public FactoryCommandLoader() throws IOException {
+			jarDirMonitor =  new JarMonitor(jarDirPath);
+			cmdFactory = CMDFactory.getInstance();
+			dbManagementMap = new HashMap<>();
 		}
 
-		private void load() throws ClassNotFoundException, IOException, NoSuchMethodException, SecurityException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, InstantiationException {
-			for(Class<?> classIter : JarLoader.load(interfaceName, jarPath)) {
-				Method method = classIter.getMethod("addToFactory");
-				method.invoke(classIter.getConstructor().newInstance());
+		public void stop() throws IOException {
+			jarDirMonitor.stopUpdate();
+		}
+		
+		public void start() {
+			Callback<String> loadCallback = new Callback<>((filePath) -> {commandLoader.load(filePath);} ,null);
+			jarDirMonitor.register(loadCallback);
+		}
+	
+		private void load(String jarPath) {
+			try {
+				for(Class<?> classIter : JarLoader.load(interfaceName, jarPath)) {
+					System.err.println("path asked to load: \n" + jarPath);
+					System.out.println("loading into factory: " + classIter.toString());
+					Method method = classIter.getMethod("addToFactory");
+					method.invoke(classIter.getConstructor().newInstance());
+				}
+			} catch (ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException
+					| IllegalArgumentException | InvocationTargetException | InstantiationException | IOException e) {
+				e.printStackTrace();
 			}
 		}
 	}
 	
-	Map<String, DatabaseManagement> dbManagementMap;
-	FactoryCommandLoader commandLoader = new FactoryCommandLoader();
-	
-	private void initFactory() throws ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException, IOException {
-		cmdFactory = CMDFactory.getInstance();
-		dbManagementMap = new HashMap<>();
-		commandLoader.load();
+	private void loadCommandsIntoFactory() {			
+		System.out.println("should load inot factory");
+		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/CompanyRegistrationCommand.jar");
+		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/ProductRegistrationCommand.jar");
+		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/IotUserRegistrationCommand.jar");
+		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/IotUpdateCommand.jar");
 	}
-	
-	private static final String URL = "jdbc:mysql://localhost:3306/";
-	private static final String USER_NAME = "root";
-	private static final String PASSWORD = "";
-	private static final String ERROR = "error";
-	private final static String JSON_ERROR = "invalid json";
 
 	private String createJsonResponse(String message1 ,String message2) {
 		return "{" + "\"" + message1 + "\"" +":" + "\"" + message2 + "\"" + "}";
@@ -636,10 +659,12 @@ public class GatewayServer {
 			String dbName = data.getString("dbName");	
 			try {
 				addDbToMapIfNotFound(dbName);
-				String response = cmdFactory.create(commandKey, data).run(data, dbManagementMap.get(dbName));
+				String response = cmdFactory.create(commandKey).run(data, dbManagementMap.get(dbName));
 				System.out.println("The response would be" + response);
-				clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
-			} catch (Exception e) {
+				if(null != response) {
+					clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
+				}
+			} catch (SQLException | IOException e) {
 				e.printStackTrace();
 			}
 		}

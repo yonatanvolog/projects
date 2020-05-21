@@ -10,9 +10,9 @@ import java.sql.SQLException;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class IotUpdateCommand implements FactoryCommandModifier{
+public class ProductRegistrationCommand implements FactoryCommandModifier{
 	private final static String COMMAND_TYPE = "commandType";
-	private final static String SUCCESS_MESSAGE = "IOT updated";
+	private final static String SUCCESS_MESSAGE = "product registered";
 	private final static String ERROR_MESSAGE = "error";
 	private final static String SYNTAX_ERROR = "sql syntax error";
 	private final static String JSON_ERROR = "invalid json";
@@ -20,17 +20,17 @@ public class IotUpdateCommand implements FactoryCommandModifier{
 	@Override
 	public void addToFactory() {
 		CMDFactory<FactoryCommand, String, Object> cmdFactory = CMDFactory.getInstance();
-		cmdFactory.add("IOT_UPDATE", (IotUpdate) -> new IotUpdate());
+		cmdFactory.add("PRODUCT_REGISTRATION", (ProductRegistration) -> new ProductRegistration());
 	}
 	
-	public class IotUpdate implements FactoryCommand {
+	public class ProductRegistration implements FactoryCommand {
 		@Override
 		public String run(Object data, DatabaseManagementInterface databaseManagement) {
 			String response = null;
 			
 			JSONObject dataAsJson = (JSONObject) data;
 			try {
-				databaseManagement.createIOTEvent(dataAsJson.getString("rawData"));
+				databaseManagement.createRow(dataAsJson.getString("sqlCommand"));
 				response = createJsonResponse(COMMAND_TYPE, SUCCESS_MESSAGE);
 			} catch (JSONException e1) {
 				e1.printStackTrace();
