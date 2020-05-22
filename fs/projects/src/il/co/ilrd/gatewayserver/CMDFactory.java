@@ -29,4 +29,10 @@ public class CMDFactory<T, K, D> {
 	public T create(K key) {
 		return create(key, null);	
 	}
+	
+	
+	//just for a test
+	public Function<D, ? extends T> getByKey(K key) {
+		return map.get(key);
+	}
 }

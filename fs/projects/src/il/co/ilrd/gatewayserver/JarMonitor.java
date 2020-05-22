@@ -21,7 +21,7 @@ import il.co.ilrd.observer.Dispatcher;
 // ***** TODO : pass the class inside gatewayServer and change modifier of class to private !!!!  ******
 
 public class JarMonitor implements DirMonitor {
-	private final String JAR_SUFFIX = ".jar";
+	private final String JAR_EXTENSION = ".jar";
 	private Dispatcher<String> dispatcher;
 	private WatchService watcher;
 	private File folderToWatch;
@@ -29,7 +29,6 @@ public class JarMonitor implements DirMonitor {
 	private String dirPath;
 
 	public JarMonitor(String dirPath) throws IOException {
-		System.err.println("in jar monitor ctor*************************");
 		this.dirPath = dirPath;
 		folderToWatch = new File(dirPath);
 		checkIfFolderExists(folderToWatch);
@@ -58,10 +57,8 @@ public class JarMonitor implements DirMonitor {
 	}
 	
 	private void updateAll(WatchEvent<?> event) {
-		System.err.println("updating all that changed: " + event.context().toString());
-		System.out.println("dir path is: " + dirPath);
-		System.out.println("the full path would be: " + dirPath);
-		dispatcher.updateAll(event.context().toString());
+		System.out.println("JarMonitor noticed change: \n" + dirPath + event.context().toString());
+		dispatcher.updateAll(dirPath + event.context().toString());
 	}
 	
 	private	class WatcherThread extends Thread {
@@ -76,7 +73,6 @@ public class JarMonitor implements DirMonitor {
 		@Override
 		public void run() {
 			while (keepWatching) {
-				System.err.println("watcher is running");
 				WatchKey eventsKey = null;
 				try {
 					eventsKey = watcher.take();
@@ -93,13 +89,10 @@ public class JarMonitor implements DirMonitor {
 	}
 	
 	private void checkEvents(WatchKey eventsKey) {
-		System.err.println("checking events");
-
 		Objects.requireNonNull(eventsKey);
 		for (WatchEvent<?> event : eventsKey.pollEvents()) {
 			final Path changedFile = (Path)event.context();
-			System.err.println(changedFile.toString());
-			if (changedFile.toString().endsWith(JAR_SUFFIX)) {
+			if (changedFile.toString().endsWith(JAR_EXTENSION)) {
 				updateAll(event);
 			}
 		}

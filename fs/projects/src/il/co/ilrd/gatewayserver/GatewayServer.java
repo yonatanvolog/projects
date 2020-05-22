@@ -2,6 +2,7 @@ package il.co.ilrd.gatewayserver;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -9,6 +10,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channel;
 import java.nio.channels.DatagramChannel;
@@ -50,7 +53,8 @@ public class GatewayServer {
 	private static final String COMMAND_KEY = "Commandkey";
 	private static final String DATA = "Data";
 	private static final int MAXIMUM_THREADS = 20;
-	private final static String jarDirPath = "/home/student/Yonatan-Vologdin/fs/projects/bin";
+	private final static String JAR_DIR_PATH = "/home/yonatan/Yonatan-Vologdin/fs/projects/bin/jars/";
+	private final static String JAR_EXTENSION = ".jar";
 
 	
 	private ConnectionHandler connectionHandler;
@@ -137,6 +141,7 @@ public class GatewayServer {
 			highLevelHttpServer = new HighLevelHttpServer(portNumber);
 		}
 	}
+	
 	private boolean connectionCanBeCreated(int portNumber, List<ServerConnection> specificServerList) {
 		boolean answer = true;
 		for (ServerConnection connection : specificServerList) {
@@ -156,6 +161,7 @@ public class GatewayServer {
 	
 	public interface FactoryCommandModifier {
 		public void addToFactory();
+		public Integer getVersion();
 	}
 	
 	public interface DatabaseManagementInterface {
@@ -169,7 +175,7 @@ public class GatewayServer {
 		String interfaceName = "FactoryCommandModifier";
 		
 		public FactoryCommandLoader() throws IOException {
-			jarDirMonitor =  new JarMonitor(jarDirPath);
+			jarDirMonitor =  new JarMonitor(JAR_DIR_PATH);
 			cmdFactory = CMDFactory.getInstance();
 			dbManagementMap = new HashMap<>();
 		}
@@ -186,24 +192,24 @@ public class GatewayServer {
 		private void load(String jarPath) {
 			try {
 				for(Class<?> classIter : JarLoader.load(interfaceName, jarPath)) {
-					System.err.println("path asked to load: \n" + jarPath);
-					System.out.println("loading into factory: " + classIter.toString());
-					Method method = classIter.getMethod("addToFactory");
-					method.invoke(classIter.getConstructor().newInstance());
+					Method method = classIter.getDeclaredMethod("addToFactory");
+					Object instance = classIter.getDeclaredConstructor().newInstance();
+					method.invoke(instance);
 				}
 			} catch (ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException
-					| IllegalArgumentException | InvocationTargetException | InstantiationException | IOException e) {
+					| IllegalArgumentException | InvocationTargetException | IOException | InstantiationException e) {
 				e.printStackTrace();
 			}
 		}
 	}
 	
-	private void loadCommandsIntoFactory() {			
-		System.out.println("should load inot factory");
-		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/CompanyRegistrationCommand.jar");
-		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/ProductRegistrationCommand.jar");
-		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/IotUserRegistrationCommand.jar");
-		commandLoader.load("/home/student/Yonatan-Vologdin/fs/projects/bin/IotUpdateCommand.jar");
+	private void loadCommandsIntoFactory() {	
+	    for (final File fileEntry : new File(JAR_DIR_PATH).listFiles()) {
+	    	if(fileEntry.getName().endsWith(JAR_EXTENSION)) {
+	    		commandLoader.load(fileEntry.getPath());
+	    	}
+
+	    }
 	}
 
 	private String createJsonResponse(String message1 ,String message2) {
@@ -660,7 +666,7 @@ public class GatewayServer {
 			try {
 				addDbToMapIfNotFound(dbName);
 				String response = cmdFactory.create(commandKey).run(data, dbManagementMap.get(dbName));
-				System.out.println("The response would be" + response);
+				System.out.println("Response to client:\n" + response);
 				if(null != response) {
 					clientInfo.connection.sendResponseMessage(clientInfo, stringToBuffer(response));
 				}
