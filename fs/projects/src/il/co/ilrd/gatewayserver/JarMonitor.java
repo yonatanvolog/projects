@@ -40,14 +40,12 @@ public class JarMonitor implements DirMonitor {
 	
 	@Override
 	public void register(Callback<String> callback) {
-		Objects.requireNonNull(callback);
-		dispatcher.register(callback);		
+		dispatcher.register(Objects.requireNonNull(callback));		
 	}
 	
 	@Override
 	public void unregister(Callback<String> callback) {
-		Objects.requireNonNull(callback);
-		dispatcher.unregister(callback);		
+		dispatcher.unregister(Objects.requireNonNull(callback));		
 	}
 
 	@Override
@@ -65,8 +63,7 @@ public class JarMonitor implements DirMonitor {
 		public WatcherThread(File fileName) throws IOException {
 			Objects.requireNonNull(fileName);
 			Path directory = fileName.toPath();
-			directory.register(watcher, ENTRY_CREATE, 
-										ENTRY_DELETE, 
+			directory.register(watcher, ENTRY_DELETE, 
 										ENTRY_MODIFY);
 		}
 		
@@ -89,7 +86,6 @@ public class JarMonitor implements DirMonitor {
 	}
 	
 	private void checkEvents(WatchKey eventsKey) {
-		Objects.requireNonNull(eventsKey);
 		for (WatchEvent<?> event : eventsKey.pollEvents()) {
 			final Path changedFile = (Path)event.context();
 			if (changedFile.toString().endsWith(JAR_EXTENSION)) {
@@ -101,7 +97,7 @@ public class JarMonitor implements DirMonitor {
 	
 	static void checkIfFolderExists(File file) throws FileNotFoundException {
 		if (!file.exists()) {
-			throw new NullPointerException("folder doesn't exist");
+			throw new NullPointerException("Jar monitor received a folder that doesn't exist");
 		}
 	}	
 }

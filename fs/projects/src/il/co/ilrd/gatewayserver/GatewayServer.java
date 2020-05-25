@@ -53,7 +53,7 @@ public class GatewayServer {
 	private static final String COMMAND_KEY = "Commandkey";
 	private static final String DATA = "Data";
 	private static final int MAXIMUM_THREADS = 20;
-	private final static String JAR_DIR_PATH = "/home/yonatan/Yonatan-Vologdin/fs/projects/bin/jars/";
+	private final static String JAR_DIR_PATH = "/home/student/Yonatan-Vologdin/fs/projects/bin/jars/";
 	private final static String JAR_EXTENSION = ".jar";
 
 	
@@ -208,7 +208,6 @@ public class GatewayServer {
 	    	if(fileEntry.getName().endsWith(JAR_EXTENSION)) {
 	    		commandLoader.load(fileEntry.getPath());
 	    	}
-
 	    }
 	}
 
