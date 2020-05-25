@@ -47,15 +47,28 @@ import il.co.ilrd.jarloader1.JarLoader;
 import il.co.ilrd.jarloader1.SayHi;
 import il.co.ilrd.observer.Callback;
 
+import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+
+import java.io.FileNotFoundException;
+import java.nio.file.ClosedWatchServiceException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.util.Objects;
+
+import il.co.ilrd.observer.Dispatcher;
+
 public class GatewayServer {
 	private static final int BUFFER_SIZE = 4096;
 	private static final int DEFAULT_NUM_OF_THREADS = 1;
 	private static final String COMMAND_KEY = "Commandkey";
 	private static final String DATA = "Data";
 	private static final int MAXIMUM_THREADS = 20;
-	private final static String JAR_DIR_PATH = "/home/yonatan/Yonatan-Vologdin/fs/projects/bin/jars/";
+	private final static String JAR_DIR_PATH = "/home/student/Yonatan-Vologdin/fs/projects/bin/jars/";
 	private final static String JAR_EXTENSION = ".jar";
-
 	
 	private ConnectionHandler connectionHandler;
 	private MessageHandler messageHandler;	
@@ -153,23 +166,93 @@ public class GatewayServer {
 	}
 	
 	/**********************************************
+	 * JarMonitor
+	 **********************************************/
+	private class JarMonitor implements DirMonitor {
+		private final String JAR_EXTENSION = ".jar";
+		private Dispatcher<String> dispatcher;
+		private WatchService watcher;
+		private File folderToWatch;
+		private boolean keepWatching;
+		private String dirPath;
+
+		public JarMonitor(String dirPath) throws IOException {
+			this.dirPath = dirPath;
+			folderToWatch = new File(dirPath);
+			checkIfFolderExists(folderToWatch);
+			dispatcher = new Dispatcher<>();
+			watcher = FileSystems.getDefault().newWatchService();;
+			keepWatching = true;
+			new WatcherThread(folderToWatch).start();
+		}
+		
+		@Override
+		public void register(Callback<String> callback) {
+			dispatcher.register(Objects.requireNonNull(callback));		
+		}
+		
+		@Override
+		public void unregister(Callback<String> callback) {
+			dispatcher.unregister(Objects.requireNonNull(callback));		
+		}
+
+		@Override
+		public void stopUpdate() throws IOException {
+			keepWatching = false;
+			watcher.close();
+		}
+		
+		private void updateAll(WatchEvent<?> event) {
+			System.out.println("JarMonitor noticed change: \n" + dirPath + event.context().toString());
+			dispatcher.updateAll(dirPath + event.context().toString());
+		}
+		
+		private	class WatcherThread extends Thread {
+			public WatcherThread(File fileName) throws IOException {
+				Objects.requireNonNull(fileName);
+				Path directory = fileName.toPath();
+				directory.register(watcher, ENTRY_DELETE, 
+											ENTRY_MODIFY);
+			}
+			
+			@Override
+			public void run() {
+				while (keepWatching) {
+					WatchKey eventsKey = null;
+					try {
+						eventsKey = watcher.take();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					} catch (ClosedWatchServiceException e){
+						//continue
+					}
+					if (null != eventsKey) {
+						checkEvents(eventsKey);					
+					}
+				}
+			}
+		}
+		
+		private void checkEvents(WatchKey eventsKey) {
+			for (WatchEvent<?> event : eventsKey.pollEvents()) {
+				final Path changedFile = (Path)event.context();
+				if (changedFile.toString().endsWith(JAR_EXTENSION)) {
+					updateAll(event);
+				}
+			}
+			keepWatching = eventsKey.reset();
+		}
+		
+		private void checkIfFolderExists(File file) throws FileNotFoundException {
+			if (!file.exists()) {
+				throw new NullPointerException("Jar monitor received a folder that doesn't exist");
+			}
+		}
+	}
+	
+	/**********************************************
 	 * Factory
 	 **********************************************/
-	public interface FactoryCommand {
-		public String run(Object data, DatabaseManagementInterface databaseManagement);
-	}
-	
-	public interface FactoryCommandModifier {
-		public void addToFactory();
-		public Integer getVersion();
-	}
-	
-	public interface DatabaseManagementInterface {
-		public void createTable(String sqlCommand) throws SQLException;
-		public void createRow(String sqlCommand) throws SQLException;
-		public void createIOTEvent(String rawData) throws SQLException;
-	}
-	
 	private class FactoryCommandLoader {
 		JarMonitor jarDirMonitor;
 		String interfaceName = "FactoryCommandModifier";
@@ -208,7 +291,6 @@ public class GatewayServer {
 	    	if(fileEntry.getName().endsWith(JAR_EXTENSION)) {
 	    		commandLoader.load(fileEntry.getPath());
 	    	}
-
 	    }
 	}
 

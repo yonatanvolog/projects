@@ -1,9 +1,9 @@
 //package il.co.ilrd.jarloader1;
 //
 //import il.co.ilrd.gatewayserver.CMDFactory;
-//import il.co.ilrd.gatewayserver.GatewayServer.DatabaseManagementInterface;
-//import il.co.ilrd.gatewayserver.GatewayServer.FactoryCommand;
-//import il.co.ilrd.gatewayserver.GatewayServer.FactoryCommandModifier;
+//import il.co.ilrd.gatewayserver.DatabaseManagementInterface;
+//import il.co.ilrd.gatewayserver.FactoryCommand;
+//import il.co.ilrd.gatewayserver.FactoryCommandModifier;
 //
 //import java.sql.SQLException;
 //

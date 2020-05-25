@@ -29,14 +29,11 @@ public class JarLoader {
 		
 		while(jarEntries.hasMoreElements()) {
 			String iterEntry = jarEntries.nextElement().toString();
-			
-			if (iterEntry.contains(CLASS_SUFFIX)) {	
-				iterEntry = iterEntry.replace(SLASH, DOT);
-				iterEntry = iterEntry.replace(CLASS_SUFFIX, EMPTY_STRING);
+			if (iterEntry.contains(CLASS_SUFFIX)) {
+				iterEntry = convertJarEntryToClass(iterEntry);
 				Class<?> iterClass = classLoader.loadClass(iterEntry);
-				Class<?>[] interfacesImplmentedBycurrEntry = iterClass.getInterfaces();
-				for (Class<?> implementedInterface : interfacesImplmentedBycurrEntry) {
-					if(implementedInterface.getName().contains(interfaceName) && versionIsHigherThanCurrent(iterClass)) {
+				for (Class<?> implementedInterface : iterClass.getInterfaces()) {
+					if(implementedInterface.getName().contains(interfaceName) && isVersionHigherThanCurrent(iterClass)) {
 						classesThatImplementInterface.add(iterClass);
 						System.out.println("JarLoader just loaded: " + iterClass);
 						break;
@@ -50,7 +47,15 @@ public class JarLoader {
 		return classesThatImplementInterface;
 	}
 	
-	private static boolean versionIsHigherThanCurrent(Class<?> iterClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {		
+	
+	private static String convertJarEntryToClass(String iterEntry) {
+		iterEntry = iterEntry.replace(SLASH, DOT);
+		iterEntry = iterEntry.replace(CLASS_SUFFIX, EMPTY_STRING);
+		
+		return iterEntry;
+	}
+	
+	private static boolean isVersionHigherThanCurrent(Class<?> iterClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {		
 		Method method = iterClass.getDeclaredMethod("getVersion");
 		Object instance = iterClass.getDeclaredConstructor().newInstance();
 		Integer iterClassVersion = (Integer)method.invoke(instance);

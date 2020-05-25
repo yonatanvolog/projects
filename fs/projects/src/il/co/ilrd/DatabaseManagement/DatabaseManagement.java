@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import il.co.ilrd.gatewayserver.GatewayServer.DatabaseManagementInterface;
+import il.co.ilrd.gatewayserver.DatabaseManagementInterface;
 
 public class DatabaseManagement implements DatabaseManagementInterface {
 	private final String databaseName;
