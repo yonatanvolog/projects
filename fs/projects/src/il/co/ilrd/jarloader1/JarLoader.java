@@ -15,11 +15,10 @@ import java.util.jar.JarFile;
 
 public class JarLoader {
 	private final static String EMPTY_STRING = "";
-	private final static String CLASS_SUFFIX  = ".class";
+	private final static String CLASS_EXTENSION  = ".class";
 	private final static String SLASH  = "/";
 	private final static String DOT  = ".";
 	private final static String FILE_PREFIX = "file://";
-	private static Map<String, Integer> currVersionsMap = new HashMap<>();
 
 	public static List<Class<?>> load(String interfaceName, String jarPath) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
 		List<Class<?>> classesThatImplementInterface = new LinkedList<>();
@@ -29,14 +28,12 @@ public class JarLoader {
 		
 		while(jarEntries.hasMoreElements()) {
 			String iterEntry = jarEntries.nextElement().toString();
-			if (iterEntry.contains(CLASS_SUFFIX)) {
+			if (iterEntry.contains(CLASS_EXTENSION)) {
 				iterEntry = convertJarEntryToClass(iterEntry);
 				Class<?> iterClass = classLoader.loadClass(iterEntry);
 				for (Class<?> implementedInterface : iterClass.getInterfaces()) {
-					if(implementedInterface.getName().contains(interfaceName) && isVersionHigherThanCurrent(iterClass)) {
+					if(isImplementInterface(implementedInterface, interfaceName)) {
 						classesThatImplementInterface.add(iterClass);
-						System.out.println("JarLoader just loaded: " + iterClass);
-						break;
 					}
 				}
 			}
@@ -47,31 +44,14 @@ public class JarLoader {
 		return classesThatImplementInterface;
 	}
 	
+	private static boolean isImplementInterface(Class<?> class1 , String interfaceName) {
+		return class1.getName().contains(interfaceName);
+	}
 	
 	private static String convertJarEntryToClass(String iterEntry) {
 		iterEntry = iterEntry.replace(SLASH, DOT);
-		iterEntry = iterEntry.replace(CLASS_SUFFIX, EMPTY_STRING);
+		iterEntry = iterEntry.replace(CLASS_EXTENSION, EMPTY_STRING);
 		
 		return iterEntry;
-	}
-	
-	private static boolean isVersionHigherThanCurrent(Class<?> iterClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {		
-		Method method = iterClass.getDeclaredMethod("getVersion");
-		Object instance = iterClass.getDeclaredConstructor().newInstance();
-		Integer iterClassVersion = (Integer)method.invoke(instance);
-		
-		Integer currClassVersion = currVersionsMap.get(iterClass.getName());
-		if(null == currClassVersion) {
-			currClassVersion = -1;
-		}
-		
-		if(iterClassVersion > currClassVersion) {
-			System.out.println("current version of " + iterClass + " is: " + currClassVersion + " ,new version is: " + iterClassVersion);
-			currVersionsMap.put(iterClass.getName(), iterClassVersion);
-				
-			return true;
-		}
-		
-		return false;
 	}
 }

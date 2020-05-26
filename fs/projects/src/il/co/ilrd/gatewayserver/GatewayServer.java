@@ -67,7 +67,7 @@ public class GatewayServer {
 	private static final String COMMAND_KEY = "Commandkey";
 	private static final String DATA = "Data";
 	private static final int MAXIMUM_THREADS = 20;
-	private final static String JAR_DIR_PATH = "/home/student/Yonatan-Vologdin/fs/projects/bin/jars/";
+	private final static String JAR_DIR_PATH = "/home/student/Yonatan-Vologdin/fs/projects/jars/";
 	private final static String JAR_EXTENSION = ".jar";
 	
 	private ConnectionHandler connectionHandler;
@@ -254,8 +254,10 @@ public class GatewayServer {
 	 * Factory
 	 **********************************************/
 	private class FactoryCommandLoader {
-		JarMonitor jarDirMonitor;
-		String interfaceName = "FactoryCommandModifier";
+		private JarMonitor jarDirMonitor;
+		private Map<String, Integer> currVersionsMap = new HashMap<>();
+		private static final String INTERFACE_NAME = "FactoryCommandModifier";
+		private static final String ADD_TO_FACTORY = "addToFactory";
 		
 		public FactoryCommandLoader() throws IOException {
 			jarDirMonitor =  new JarMonitor(JAR_DIR_PATH);
@@ -274,15 +276,38 @@ public class GatewayServer {
 	
 		private void load(String jarPath) {
 			try {
-				for(Class<?> classIter : JarLoader.load(interfaceName, jarPath)) {
-					Method method = classIter.getDeclaredMethod("addToFactory");
-					Object instance = classIter.getDeclaredConstructor().newInstance();
-					method.invoke(instance);
+				for(Class<?> classIter : JarLoader.load(INTERFACE_NAME, jarPath)) {
+					if(isVersionHigherThanCurrent(classIter)) {
+						Method method = classIter.getDeclaredMethod(ADD_TO_FACTORY);
+						Object instance = classIter.getDeclaredConstructor().newInstance();
+						method.invoke(instance);
+						System.out.println("JarLoader just loaded: " + classIter);
+					}
 				}
 			} catch (ClassNotFoundException | NoSuchMethodException | SecurityException | IllegalAccessException
 					| IllegalArgumentException | InvocationTargetException | IOException | InstantiationException e) {
 				e.printStackTrace();
 			}
+		}
+		
+		private boolean isVersionHigherThanCurrent(Class<?> iterClass) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {		
+			Method method = iterClass.getDeclaredMethod("getVersion");
+			Object instance = iterClass.getDeclaredConstructor().newInstance();
+			Integer iterClassVersion = (Integer)method.invoke(instance);
+			
+			Integer currClassVersion = currVersionsMap.get(iterClass.getName());
+			if(null == currClassVersion) {
+				currClassVersion = -1;
+			}
+			
+			if(iterClassVersion > currClassVersion) {
+				System.out.println("current version of " + iterClass + " is: " + currClassVersion + " ,new version is: " + iterClassVersion);
+				currVersionsMap.put(iterClass.getName(), iterClassVersion);
+					
+				return true;
+			}
+			
+			return false;
 		}
 	}
 	
