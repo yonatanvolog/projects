@@ -12,5 +12,6 @@
 !*.jar
 !*.sql
 !*.txt
+!*.dia
 
 /.metadata/
